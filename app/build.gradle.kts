@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -51,4 +52,17 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Room
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:\$roomVersion")
+    implementation("androidx.room:room-ktx:${roomVersion}")
+    ksp("androidx.room:room-compiler:$roomVersion")
+
+    // Jetpack Compose & Lifecycle
+    implementation(platform("androidx.compose:compose-bom:2024.06.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.2")
 }
