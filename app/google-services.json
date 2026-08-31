@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "892852986764",
+    "project_id": "realbusinessman-b094f",
+    "storage_bucket": "realbusinessman-b094f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:892852986764:android:e3a2ba1d745d3935e32ca9",
+        "android_client_info": {
+          "package_name": "com.real.businessman"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDqiT0zUMmixt44KLAAFoapHZ2xBo9b3FQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
