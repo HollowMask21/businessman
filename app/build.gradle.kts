@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Android Core & Lifecycle
     implementation(libs.androidx.core.ktx)
