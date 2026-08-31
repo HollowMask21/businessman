@@ -57,4 +57,61 @@ class FirebaseRepository {
     suspend fun addTransaction(transaction: Transaction) {
         db.collection("transactions").add(transaction).await()
     }
+    // Внутри FirebaseRepository.kt
+
+    suspend fun checkConflictsAndPrepareImport(
+        parsedTransactions: List<Transaction>
+    ): ImportPreviewState {
+        val existingSnapshot = db.collection("transactions").get().await()
+        val existingTransactions = existingSnapshot.toObjects(Transaction::class.java)
+
+        val conflicts = mutableListOf<ConflictItem>()
+        val nonConflictingTransactions = mutableListOf<Transaction>()
+
+        for (newTx in parsedTransactions) {
+            val newItem = newTx.items.firstOrNull()
+
+            // Ищем существующую транзакцию с ТЕМ ЖЕ товаром на ТУ ЖЕ дату
+            val existingMatch = existingTransactions.find { existing ->
+                val existingItem = existing.items.firstOrNull()
+                existing.date == newTx.date &&
+                        existing.type == newTx.type &&
+                        existingItem?.productName == newItem?.productName
+            }
+
+            if (existingMatch != null) {
+                val oldItem = existingMatch.items.firstOrNull()
+
+                if (oldItem != null && newItem != null && (oldItem.pricePerUnit != newItem.pricePerUnit || oldItem.quantity != newItem.quantity)) {
+                    conflicts.add(
+                        ConflictItem(
+                            productName = newItem.productName,
+                            oldPrice = oldItem.pricePerUnit,
+                            newPrice = newItem.pricePerUnit,
+                            oldQuantity = oldItem.quantity,
+                            newQuantity = newItem.quantity,
+                            date = newTx.date,
+                            type = newTx.type
+                        )
+                    )
+                }
+            } else {
+                nonConflictingTransactions.add(newTx)
+            }
+        }
+
+        return ImportPreviewState(
+            newTransactions = nonConflictingTransactions,
+            conflicts = conflicts
+        )
+    }
+    // Сохранение списка транзакций (используется при импорте)
+    suspend fun saveTransactions(transactions: List<Transaction>) {
+        val batch = db.batch()
+        for (transaction in transactions) {
+            val docRef = db.collection("transactions").document()
+            batch.set(docRef, transaction)
+        }
+        batch.commit().await()
+    }
 }

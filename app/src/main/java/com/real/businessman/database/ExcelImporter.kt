@@ -4,87 +4,98 @@ import android.content.Context
 import android.net.Uri
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.apache.poi.ss.usermodel.*
 
 class FirebaseExcelImporter(private val repository: FirebaseRepository) {
     private val db = FirebaseFirestore.getInstance()
 
-    suspend fun importExcel(context: Context, uri: Uri, defaultType: String): Result<Int> {
-        return runCatching {
-            var importedCount = 0
+    suspend fun parseExcelTransactions(
+        context: Context,
+        uri: Uri,
+        transactionType: String
+    ): Result<List<Transaction>> = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+                ?: return@withContext Result.failure(Exception("Не удалось открыть файл"))
 
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                val workbook = WorkbookFactory.create(inputStream)
-                val sheet = workbook.getSheetAt(0)
-                val headerRow = sheet.getRow(0) ?: throw Exception("Файл пуст")
+            val workbook = WorkbookFactory.create(inputStream)
+            val sheet = workbook.getSheetAt(0)
+            val transactions = mutableListOf<Transaction>()
 
-                var colProduct = -1
-                var colPrice = -1
-                var colQty = -1
-                var colTotal = -1
-                var colDate = -1
+            // Индексы колонок (по умолчанию -1)
+            var colProduct = -1
+            var colPrice = -1
+            var colQty = -1
+            var colTotal = -1
+            var colDate = -1
 
-                for (cell in headerRow) {
-                    val title = cell.stringCellValue.trim().lowercase()
-                    when {
-                        title.contains("вид товара") || title.contains("товар") -> colProduct = cell.columnIndex
-                        title.contains("цена") -> colPrice = cell.columnIndex
-                        title.contains("кол") -> colQty = cell.columnIndex
-                        title.contains("сумма") || title.contains(other = "итоговая цена") -> colTotal = cell.columnIndex
-                        title.contains("дата") -> colDate = cell.columnIndex
-                    }
-                }
+            val headerRow = sheet.getRow(0) ?: return@withContext Result.failure(Exception("Пустой файл"))
 
-                // ПРОВЕРКА: Если обязательный столбец с названием товара не найден, прерываем импорт
-                if (colProduct == -1) {
-                    throw Exception("Столбец 'Вид товара' или 'Товар' не найден в файле")
-                }
-
-                for (rowIndex in 1..sheet.lastRowNum) {
-                    val row = sheet.getRow(rowIndex) ?: continue
-                    val productName = if (colProduct >= 0) getCellValueAsString(row.getCell(colProduct)).trim() else ""
-                    if (productName.isEmpty()) continue
-
-                    val pricePerUnit = if (colPrice >= 0) getCellValueAsDouble(row.getCell(colPrice)) else 0.0
-                    val quantity = if (colQty >= 0) getCellValueAsDouble(row.getCell(colQty)) else 0.0
-                    val totalAmountFromCell = if (colTotal >= 0) getCellValueAsDouble(row.getCell(colTotal)) else 0.0
-
-                    val totalAmount = if (totalAmountFromCell == 0.0) pricePerUnit * quantity else totalAmountFromCell
-                    val dateStr = if (colDate >= 0) getCellValueAsString(row.getCell(colDate)) else ""
-
-                    // Проверяем, существует ли товар в Firebase
-                    val existingProducts = db.collection("products")
-                        .whereEqualTo("name", productName)
-                        .get().await()
-
-                    val productId: String = if (!existingProducts.isEmpty) {
-                        existingProducts.documents[0].id
-                    } else {
-                        val productType = if (defaultType == "SALE") "PRODUCT" else "MATERIAL"
-                        repository.addProduct(Product(name = productName, type = productType, price = pricePerUnit))
-                    }
-
-                    // Создаем транзакцию
-                    val item = TransactionItem(
-                        productId = productId,
-                        productName = productName,
-                        quantity = quantity,
-                        pricePerUnit = pricePerUnit
-                    )
-
-                    val transaction = Transaction(
-                        type = defaultType,
-                        totalAmount = totalAmount,
-                        date = dateStr,
-                        comment = "Импорт из Excel",
-                        items = listOf(item)
-                    )
-
-                    repository.addTransaction(transaction)
-                    importedCount++
+            for (cell in headerRow) {
+                val title = cell.stringCellValue.trim().lowercase()
+                when {
+                    title.contains("вид товара") || title.contains("товар") || title.contains("материал") || title.contains("наименование") -> colProduct = cell.columnIndex
+                    title.contains("цена") || title.contains("себестоимост") || title.contains("закуп") -> colPrice = cell.columnIndex
+                    title.contains("количест") || title.contains("кол-во") || title.contains("объем") -> colQty = cell.columnIndex
+                    title.contains("сумма") || title.contains("итого") || title.contains("стоимост") -> colTotal = cell.columnIndex
+                    title.contains("дата") -> colDate = cell.columnIndex
                 }
             }
-            importedCount
+
+            // Проходим по строкам файла начиная со 2-й (индекс 1)
+            for (rowIndex in 1..sheet.lastRowNum) {
+                val row = sheet.getRow(rowIndex) ?: continue
+
+                val productName = row.getCell(colProduct)?.toString()?.trim() ?: ""
+                if (productName.isBlank()) continue
+
+                val price = row.getCell(colPrice)?.numericCellValue ?: 0.0
+                val quantity = row.getCell(colQty)?.numericCellValue ?: 1.0
+                val total = if (colTotal != -1) row.getCell(colTotal)?.numericCellValue ?: (price * quantity) else (price * quantity)
+                val date = row.getCell(colDate)?.toString()?.trim() ?: ""
+
+                // Проверяем, существует ли товар в Firebase, и если нет — создаем его в коллекции products
+                val existingProductsSnapshot = db.collection("products")
+                    .whereEqualTo("name", productName)
+                    .get().await()
+
+                val productId: String = if (!existingProductsSnapshot.isEmpty) {
+                    existingProductsSnapshot.documents[0].id
+                } else {
+                    val productType = if (transactionType == "SALE") "PRODUCT" else "MATERIAL"
+                    val newProduct = Product(
+                        name = productName,
+                        type = productType,
+                        price = price
+                    )
+                    repository.addProduct(newProduct)
+                }
+
+                val item = TransactionItem(
+                    productId = productId,
+                    productName = productName,
+                    quantity = quantity,
+                    pricePerUnit = price
+                )
+
+                val transaction = Transaction(
+                    type = transactionType,
+                    totalAmount = total,
+                    date = date,
+                    comment = "Импорт из Excel",
+                    items = listOf(item)
+                )
+
+                transactions.add(transaction)
+            }
+
+            workbook.close()
+            inputStream.close()
+            Result.success(transactions)
+        } catch (e: Exception) {
+            Result.failure(e)
         }
     }
 

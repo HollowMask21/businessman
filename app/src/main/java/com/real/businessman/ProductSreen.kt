@@ -101,5 +101,48 @@ fun ProductsScreen(viewModel: ProductViewModel) {
                 }
             }
         }
+
+        // Диалог разрешения конфликтов импорта
+        viewModel.importPreviewState?.let { preview ->
+            if (preview.conflicts.isNotEmpty()) {
+                AlertDialog(
+                    onDismissRequest = { viewModel.dismissImportConflict() },
+                    title = { Text("Обнаружены расхождения") },
+                    text = {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            item {
+                                Text("В базе найдены записи за те же даты для тех же товаров, но с другими данными. Хотите обновить их?")
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            items(preview.conflicts) { conflict ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                                ) {
+                                    Column(modifier = Modifier.padding(8.dp)) {
+                                        Text("Товар: ${conflict.productName}", style = MaterialTheme.typography.titleSmall)
+                                        Text("Дата: ${conflict.date}")
+                                        Text("Было: цена ${conflict.oldPrice}, кол-во ${conflict.oldQuantity}")
+                                        Text("Стало: цена ${conflict.newPrice}, кол-во ${conflict.newQuantity}")
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            // Передаем целиком объект preview, чтобы viewModel корректно сохранила дату и структуру
+                            viewModel.confirmAndForceImport(preview)
+                        }) {
+                            Text("Подтвердить и обновить")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.dismissImportConflict() }) {
+                            Text("Отмена")
+                        }
+                    }
+                )
+            }
+        }
     }
 }
