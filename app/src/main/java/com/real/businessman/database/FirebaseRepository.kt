@@ -1,6 +1,7 @@
 package com.real.businessman.database
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -9,7 +10,7 @@ import kotlinx.coroutines.tasks.await
 class FirebaseRepository {
     private val db = FirebaseFirestore.getInstance()
 
-    // 1. Включение работы в оффлайн режиме (включается автоматически в Firebase SDK)
+    // 1. Включение работы в офлайн режиме (включается автоматически в Firebase SDK)
     init {
         val settings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
             .setPersistenceEnabled(true) // Сохранять данные локально, если нет интернета
@@ -27,6 +28,21 @@ class FirebaseRepository {
                 }
                 val products = snapshot?.toObjects(Product::class.java) ?: emptyList()
                 trySend(products)
+            }
+        awaitClose { listener.remove() }
+    }
+
+    // Получение списка всех транзакций в реальном времени
+    fun getTransactionsFlow(): Flow<List<Transaction>> = callbackFlow {
+        val listener = db.collection("transactions")
+            .orderBy("date", Query.Direction.DESCENDING) // Сначала свежие
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                val transactions = snapshot?.toObjects(Transaction::class.java) ?: emptyList()
+                trySend(transactions)
             }
         awaitClose { listener.remove() }
     }
