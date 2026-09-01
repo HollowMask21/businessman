@@ -51,28 +51,34 @@ fun TransactionsScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
-            if (isLoading) {
-                CircularProgressIndicator()
-            } else if (transactions.isEmpty()) {
-                Text(
-                    text = "Транзакций пока нет.\nИмпортируйте Excel или создайте запись.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(transactions) { transaction ->
-                        TransactionItemCard(transaction = transaction)
+            when {
+                // 1. Если данные уже есть — сразу показываем список (даже если идет фоновое обновление)
+                transactions.isNotEmpty() -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(transactions) { transaction ->
+                            TransactionItemCard(transaction = transaction)
+                        }
                     }
+                }
+                // 2. Если списка нет и идет первая загрузка — показываем индикатор
+                isLoading -> {
+                    CircularProgressIndicator()
+                }
+                // 3. Если загрузка завершена и транзакций действительно нет — показываем текст
+                else -> {
+                    Text(
+                        text = "Транзакций пока нет.\nИмпортируйте Excel или создайте запись.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

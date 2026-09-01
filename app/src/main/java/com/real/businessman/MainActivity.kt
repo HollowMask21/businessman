@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.runtime.*
@@ -52,12 +53,18 @@ class MainActivity : ComponentActivity() {
                             NavigationBarItem(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
-                                icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Товары") },
-                                label = { Text("Каталог") }
+                                icon = { Icon(Icons.Default.Home, contentDescription = "Главная") },
+                                label = { Text("Главная") }
                             )
                             NavigationBarItem(
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
+                                icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Товары") },
+                                label = { Text("Каталог") }
+                            )
+                            NavigationBarItem(
+                                selected = selectedTab == 2,
+                                onClick = { selectedTab = 2 },
                                 icon = { Icon(Icons.Default.List, contentDescription = "Транзакции") },
                                 label = { Text("Операции") }
                             )
@@ -66,8 +73,12 @@ class MainActivity : ComponentActivity() {
                 ) { paddingValues ->
                     Surface(modifier = Modifier.padding(paddingValues)) {
                         when (selectedTab) {
-                            0 -> ProductsScreen(viewModel = productViewModel)
-                            1 -> TransactionsScreen(
+                            0 -> HomeScreen(
+                                transactionViewModel = transactionViewModel,
+                                onNavigateToTransactions = { selectedTab = 2 }
+                            )
+                            1 -> ProductsScreen(viewModel = productViewModel)
+                            2 -> TransactionsScreen(
                                 transactionViewModel = transactionViewModel,
                                 productViewModel = productViewModel
                             )
