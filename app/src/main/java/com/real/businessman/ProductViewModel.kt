@@ -11,13 +11,12 @@ import com.real.businessman.database.FirebaseExcelImporter
 import com.real.businessman.database.FirebaseRepository
 import com.real.businessman.database.Product
 import com.real.businessman.database.ImportPreviewState
-import com.real.businessman.database.Transaction
-import com.real.businessman.database.TransactionItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class ProductViewModel(
@@ -25,7 +24,14 @@ class ProductViewModel(
 ) : ViewModel() {
 
     // Подписываемся на изменения из Firestore
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading
+
     val products: StateFlow<List<Product>> = repository.getProductsFlow()
+        .onEach {
+            // Сбрасываем флаг загрузки, как только пришли новые данные из Firestore
+            _isLoading.value = false
+        }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),

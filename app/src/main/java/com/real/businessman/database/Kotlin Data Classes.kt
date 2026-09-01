@@ -7,8 +7,6 @@ data class Product(
     @DocumentId val id: String = "",
     val name: String = "",
     val type: String = "PRODUCT", // "PRODUCT" или "MATERIAL"
-    val price: Double = 0.0,
-    val stockQuantity: Double = 0.0
 )
 
 // Позиция внутри сделки

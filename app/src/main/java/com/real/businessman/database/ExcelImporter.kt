@@ -68,7 +68,6 @@ class FirebaseExcelImporter(private val repository: FirebaseRepository) {
                     val newProduct = Product(
                         name = productName,
                         type = productType,
-                        price = price
                     )
                     repository.addProduct(newProduct)
                 }

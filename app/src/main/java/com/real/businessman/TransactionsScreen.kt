@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.database.Transaction
@@ -19,6 +20,7 @@ import com.real.businessman.database.Transaction
 @Composable
 fun TransactionsScreen(viewModel: TransactionViewModel) {
     val transactions by viewModel.transactions.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -27,28 +29,36 @@ fun TransactionsScreen(viewModel: TransactionViewModel) {
             )
         }
     ) { padding ->
-        if (transactions.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
+        ) {
+            // 1. Анимация загрузки данных
+            if (isLoading) {
+                CircularProgressIndicator()
+            }
+            // 2. Отображение при отсутствии записей
+            else if (transactions.isEmpty()) {
                 Text(
                     text = "Транзакций пока нет.\nИмпортируйте Excel или создайте запись.",
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(transactions) { transaction ->
-                    TransactionItemCard(transaction = transaction)
+            // 3. Список транзакций
+            else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(transactions) { transaction ->
+                        TransactionItemCard(transaction = transaction)
+                    }
                 }
             }
         }
@@ -59,15 +69,14 @@ fun TransactionsScreen(viewModel: TransactionViewModel) {
 fun TransactionItemCard(transaction: Transaction) {
     var isExpanded by remember { mutableStateOf(false) }
 
-    // Определяем цвет и знак в зависимости от типа транзакции
     val isIncome = transaction.type == "SALE"
     val amountColor = if (isIncome) Color(0xFF2E7D32) else Color(0xFFC62828)
     val prefix = if (isIncome) "+" else "-"
 
     val typeTitle = when (transaction.type) {
         "SALE" -> "Продажа"
-            "PURCHASE" -> "Закупка товара"
-            "EXPENSE" -> "Расход"
+        "PURCHASE" -> "Закупка товара"
+        "EXPENSE" -> "Расход"
         else -> "Операция"
     }
 
@@ -108,7 +117,6 @@ fun TransactionItemCard(transaction: Transaction) {
                 )
             }
 
-            // Комментарий к транзакции (например, "Импорт из Excel" или "андрюшке")
             if (transaction.comment.isNotBlank()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -118,7 +126,6 @@ fun TransactionItemCard(transaction: Transaction) {
                 )
             }
 
-            // Раскрывающийся список позиций (items)
             AnimatedVisibility(visible = isExpanded && transaction.items.isNotEmpty()) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
