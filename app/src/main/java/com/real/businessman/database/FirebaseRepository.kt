@@ -1,7 +1,6 @@
 package com.real.businessman.database
 
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -10,10 +9,10 @@ import kotlinx.coroutines.tasks.await
 class FirebaseRepository {
     private val db = FirebaseFirestore.getInstance()
 
-    // 1. Включение работы в офлайн режиме (включается автоматически в Firebase SDK)
+    // 1. Включение работы в офлайн режиме
     init {
         val settings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
-            .setPersistenceEnabled(true) // Сохранять данные локально, если нет интернета
+            .setPersistenceEnabled(true)
             .build()
         db.firestoreSettings = settings
     }
@@ -23,7 +22,8 @@ class FirebaseRepository {
         val listener = db.collection("products")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    // Игнорируем PERMISSION_DENIED при выходе из аккаунта
+                    close()
                     return@addSnapshotListener
                 }
                 val products = snapshot?.toObjects(Product::class.java) ?: emptyList()
@@ -34,17 +34,23 @@ class FirebaseRepository {
 
     // Получение списка всех транзакций в реальном времени
     fun getTransactionsFlow(): Flow<List<Transaction>> = callbackFlow {
-        val listener = db.collection("transactions")
-            .orderBy("date", Query.Direction.DESCENDING) // Сначала свежие
+        val listenerRegistration = db.collection("transactions")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    // Игнорируем PERMISSION_DENIED при выходе из аккаунта, не вызывая crash
+                    close()
                     return@addSnapshotListener
                 }
-                val transactions = snapshot?.toObjects(Transaction::class.java) ?: emptyList()
-                trySend(transactions)
+
+                if (snapshot != null) {
+                    val transactions = snapshot.toObjects(Transaction::class.java)
+                    trySend(transactions)
+                }
             }
-        awaitClose { listener.remove() }
+
+        awaitClose {
+            listenerRegistration.remove()
+        }
     }
 
     // 3. Добавление товара
@@ -57,8 +63,8 @@ class FirebaseRepository {
     suspend fun addTransaction(transaction: Transaction) {
         db.collection("transactions").add(transaction).await()
     }
-    // Внутри FirebaseRepository.kt
 
+    // Проверка конфликтов перед импортом
     suspend fun checkConflictsAndPrepareImport(
         parsedTransactions: List<Transaction>
     ): ImportPreviewState {
@@ -106,6 +112,7 @@ class FirebaseRepository {
             conflicts = conflicts
         )
     }
+
     // Сохранение списка транзакций (используется при импорте)
     suspend fun saveTransactions(transactions: List<Transaction>) {
         val batch = db.batch()
@@ -115,6 +122,7 @@ class FirebaseRepository {
         }
         batch.commit().await()
     }
+
     // Обновление конфликтных записей и сохранение новых за один батч
     suspend fun resolveConflictsAndSave(
         newTransactions: List<Transaction>,
