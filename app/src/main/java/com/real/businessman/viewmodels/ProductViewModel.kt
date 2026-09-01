@@ -1,4 +1,4 @@
-package com.real.businessman
+package com.real.businessman.viewmodels
 
 import android.content.Context
 import android.net.Uri
@@ -9,14 +9,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.real.businessman.database.FirebaseExcelImporter
 import com.real.businessman.database.FirebaseRepository
-import com.real.businessman.database.Product
 import com.real.businessman.database.ImportPreviewState
+import com.real.businessman.database.Product
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class ProductViewModel(

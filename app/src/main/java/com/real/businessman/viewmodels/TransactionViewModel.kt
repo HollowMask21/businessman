@@ -1,4 +1,4 @@
-package com.real.businessman
+package com.real.businessman.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,8 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class TransactionViewModel(
@@ -21,7 +21,7 @@ class TransactionViewModel(
     val isLoading: StateFlow<Boolean> = _isLoading
     // Подписываемся на поток транзакций из Firebase
     val transactions: StateFlow<List<Transaction>> = repository.getTransactionsFlow()
-        .onEach{
+        .onEach {
             _isLoading.value = false
         }
         .stateIn(

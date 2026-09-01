@@ -21,7 +21,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.database.FirebaseRepository
+import com.real.businessman.screens.AuthScreen
+import com.real.businessman.screens.HomeScreen
+import com.real.businessman.screens.ProductsScreen
+import com.real.businessman.screens.ProfileScreen
+import com.real.businessman.screens.TransactionsScreen
 import com.real.businessman.ui.theme.BusinessmanTheme
+import com.real.businessman.viewmodels.AuthState
+import com.real.businessman.viewmodels.AuthViewModel
+import com.real.businessman.viewmodels.ProductViewModel
+import com.real.businessman.viewmodels.TransactionViewModel
 
 class MainActivity : ComponentActivity() {
 

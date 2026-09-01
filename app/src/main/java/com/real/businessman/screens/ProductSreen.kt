@@ -1,4 +1,4 @@
-package com.real.businessman
+package com.real.businessman.screens
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.real.businessman.viewmodels.ProductViewModel
+import com.real.businessman.UserRole
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

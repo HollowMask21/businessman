@@ -1,4 +1,4 @@
-package com.real.businessman
+package com.real.businessman.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -11,6 +11,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.real.businessman.viewmodels.AuthState
+import com.real.businessman.viewmodels.AuthViewModel
 
 @Composable
 fun AuthScreen(authViewModel: AuthViewModel) {

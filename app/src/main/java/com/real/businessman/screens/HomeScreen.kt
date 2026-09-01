@@ -1,4 +1,4 @@
-package com.real.businessman
+package com.real.businessman.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.real.businessman.viewmodels.TransactionViewModel
 import com.real.businessman.database.Transaction
 
 @OptIn(ExperimentalMaterial3Api::class)

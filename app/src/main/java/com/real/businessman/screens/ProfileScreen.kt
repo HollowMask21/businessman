@@ -1,4 +1,4 @@
-package com.real.businessman
+package com.real.businessman.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.real.businessman.viewmodels.AuthViewModel
+import com.real.businessman.UserRole
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
