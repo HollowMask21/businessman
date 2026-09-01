@@ -45,6 +45,24 @@ class ProductViewModel(
     var importPreviewState by mutableStateOf<ImportPreviewState?>(null)
         private set
 
+    // Добавление продукта в ручную
+    fun addProduct(name: String, type: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val trimmedName = name.trim()
+            if (trimmedName.isNotBlank()) {
+                // Проверяем, нет ли уже позиции с таким именем (без учета регистра)
+                val exists = products.value.any { it.name.equals(trimmedName, ignoreCase = true) }
+                if (!exists) {
+                    val newProduct = Product(
+                        name = trimmedName,
+                        type = type
+                    )
+                    repository.addProduct(newProduct)
+                }
+            }
+        }
+    }
+
     // Импорт файла с предварительной проверкой дубликатов
     fun importExcelFile(context: Context, uri: Uri, transactionType: String) {
         viewModelScope.launch(Dispatchers.IO) {

@@ -1,31 +1,50 @@
 package com.real.businessman
 
+import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.database.Transaction
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionsScreen(viewModel: TransactionViewModel) {
-    val transactions by viewModel.transactions.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+fun TransactionsScreen(
+    transactionViewModel: TransactionViewModel,
+    productViewModel: ProductViewModel
+) {
+    val transactions by transactionViewModel.transactions.collectAsStateWithLifecycle()
+    val products by productViewModel.products.collectAsStateWithLifecycle()
+    val isLoading by transactionViewModel.isLoading.collectAsStateWithLifecycle()
+
+    var showAddDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("История операций") }
+                title = { Text("История операций") },
+                actions = {
+                    TextButton(onClick = { showAddDialog = true }) {
+                        Text("+ Операция")
+                    }
+                }
             )
         }
     ) { padding ->
@@ -35,21 +54,16 @@ fun TransactionsScreen(viewModel: TransactionViewModel) {
                 .padding(padding),
             contentAlignment = Alignment.Center
         ) {
-            // 1. Анимация загрузки данных
             if (isLoading) {
                 CircularProgressIndicator()
-            }
-            // 2. Отображение при отсутствии записей
-            else if (transactions.isEmpty()) {
+            } else if (transactions.isEmpty()) {
                 Text(
                     text = "Транзакций пока нет.\nИмпортируйте Excel или создайте запись.",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-            // 3. Список транзакций
-            else {
+            } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -62,7 +76,214 @@ fun TransactionsScreen(viewModel: TransactionViewModel) {
                 }
             }
         }
+
+        if (showAddDialog) {
+            AddTransactionDialog(
+                products = products.map { it.name },
+                onDismiss = { showAddDialog = false },
+                onConfirm = { type, date, productName, quantity, price, comment ->
+                    transactionViewModel.addManualTransaction(type, date, productName, quantity, price, comment)
+                    showAddDialog = false
+                }
+            )
+        }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddTransactionDialog(
+    products: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (type: String, date: String, productName: String, quantity: Double, price: Double, comment: String) -> Unit
+) {
+    val context = LocalContext.current
+    val calendar = Calendar.getInstance()
+
+    var selectedType by remember { mutableStateOf("SALE") }
+    var selectedProduct by remember { mutableStateOf("") }
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Текущая дата по умолчанию (ДД.ММ.ГГГГ)
+    val currentDay = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.DAY_OF_MONTH))
+    val currentMonth = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.MONTH) + 1)
+    val currentYear = calendar.get(Calendar.YEAR)
+    var selectedDate by remember { mutableStateOf("$currentDay.$currentMonth.$currentYear") }
+
+    var quantityText by remember { mutableStateOf("") }
+    var priceText by remember { mutableStateOf("") }
+    var commentText by remember { mutableStateOf("") }
+
+    val typeOptions = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
+
+    // Окно выбора даты
+    val datePickerDialog = DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            val dayStr = String.format(Locale.getDefault(), "%02d", dayOfMonth)
+            val monthStr = String.format(Locale.getDefault(), "%02d", month + 1)
+            selectedDate = "$dayStr.$monthStr.$year"
+        },
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH),
+        calendar.get(Calendar.DAY_OF_MONTH)
+    )
+
+    // Автоматический расчет суммы
+    val quantityVal = quantityText.replace(",", ".").toDoubleOrNull() ?: 0.0
+    val priceVal = priceText.replace(",", ".").toDoubleOrNull() ?: 0.0
+    val totalSum = quantityVal * priceVal
+
+    val isValid = selectedProduct.isNotBlank() && quantityVal > 0 && priceVal > 0 && selectedDate.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Новая операция") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // 1. Выбор типа операции
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    typeOptions.forEach { (typeKey, typeLabel) ->
+                        FilterChip(
+                            selected = selectedType == typeKey,
+                            onClick = { selectedType = typeKey },
+                            label = { Text(typeLabel) }
+                        )
+                    }
+                }
+
+                // 2. Выбор товара (выпадающий список)
+                ExposedDropdownMenuBox(
+                    expanded = isDropdownExpanded,
+                    onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = selectedProduct,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Товар / Позиция") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isDropdownExpanded,
+                        onDismissRequest = { isDropdownExpanded = false }
+                    ) {
+                        if (products.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Каталог пуст") },
+                                onClick = { isDropdownExpanded = false }
+                            )
+                        } else {
+                            products.forEach { productName ->
+                                DropdownMenuItem(
+                                    text = { Text(productName) },
+                                    onClick = {
+                                        selectedProduct = productName
+                                        isDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 3. Выбор даты
+                OutlinedTextField(
+                    value = selectedDate,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Дата") },
+                    trailingIcon = {
+                        IconButton(onClick = { datePickerDialog.show() }) {
+                            Icon(Icons.Default.DateRange, contentDescription = "Выбрать дату")
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { datePickerDialog.show() }
+                )
+
+                // 4. Количество и цена
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = quantityText,
+                        onValueChange = { quantityText = it },
+                        label = { Text("Кол-во") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    OutlinedTextField(
+                        value = priceText,
+                        onValueChange = { priceText = it },
+                        label = { Text("Цена за ед.") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // 5. Автоматически пересчитываемая итоговая сумма
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Итоговая сумма:", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = "$totalSum ₽",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                // 6. Опциональный комментарий
+                OutlinedTextField(
+                    value = commentText,
+                    onValueChange = { commentText = it },
+                    label = { Text("Комментарий (опционально)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (isValid) {
+                        onConfirm(selectedType, selectedDate, selectedProduct, quantityVal, priceVal, commentText)
+                    }
+                },
+                enabled = isValid
+            ) {
+                Text("Сохранить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }
 
 @Composable

@@ -14,16 +14,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsScreen(viewModel: ProductViewModel) {
     val context = LocalContext.current
 
-    // Подписка на состояния из ViewModel
     val products by viewModel.products.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     var selectedType by remember { mutableStateOf("SALE") }
+    var showAddProductDialog by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -36,24 +37,43 @@ fun ProductsScreen(viewModel: ProductViewModel) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        selectedType = "SALE"
-                        filePickerLauncher.launch(
-                            arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                        )
-                    }) {
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            selectedType = "SALE"
+                            filePickerLauncher.launch(
+                                arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text("Импорт Продаж")
                     }
 
-                    Button(onClick = {
-                        selectedType = "PURCHASE"
-                        filePickerLauncher.launch(
-                            arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                        )
-                    }) {
+                    Button(
+                        onClick = {
+                            selectedType = "PURCHASE"
+                            filePickerLauncher.launch(
+                                arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Text("Импорт Расходов")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                FilledTonalButton(
+                    onClick = { showAddProductDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("+ Добавить позицию вручную")
                 }
             }
         }
@@ -66,7 +86,6 @@ fun ProductsScreen(viewModel: ProductViewModel) {
             contentAlignment = Alignment.Center
         ) {
             when {
-                // 1. Если данные уже есть — сразу показываем список (без мерцания при переключении экранов)
                 products.isNotEmpty() -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         importState?.let { status ->
@@ -103,11 +122,9 @@ fun ProductsScreen(viewModel: ProductViewModel) {
                         }
                     }
                 }
-                // 2. Если списка нет и идет первая загрузка — показываем индикатор
                 isLoading -> {
                     CircularProgressIndicator()
                 }
-                // 3. Если загрузка завершена и товаров действительно нет — показываем текст
                 else -> {
                     Text(
                         text = "Список товаров пуст",
@@ -118,7 +135,96 @@ fun ProductsScreen(viewModel: ProductViewModel) {
             }
         }
 
-        // Диалог разрешения конфликтов импорта
+        // Диалог создания новой записи с выпадающим списком (ExposedDropdownMenuBox)
+        if (showAddProductDialog) {
+            var productName by remember { mutableStateOf("") }
+            var productType by remember { mutableStateOf("PRODUCT") }
+            var isDropdownExpanded by remember { mutableStateOf(false) }
+
+            val typeOptions = listOf("PRODUCT" to "Товар", "MATERIAL" to "Материал")
+
+            val isDuplicate = products.any {
+                it.name.trim().equals(productName.trim(), ignoreCase = true)
+            }
+
+            AlertDialog(
+                onDismissRequest = { showAddProductDialog = false },
+                title = { Text("Новая запись в каталоге") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = productName,
+                            onValueChange = { productName = it },
+                            label = { Text("Наименование") },
+                            singleLine = true,
+                            isError = isDuplicate,
+                            supportingText = {
+                                if (isDuplicate) {
+                                    Text(
+                                        text = "Позиция с таким названием уже есть в базе",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Выпадающий список выбора типа
+                        ExposedDropdownMenuBox(
+                            expanded = isDropdownExpanded,
+                            onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = typeOptions.find { it.first == productType }?.second ?: "Товар",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Тип записи") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isDropdownExpanded,
+                                onDismissRequest = { isDropdownExpanded = false }
+                            ) {
+                                typeOptions.forEach { (typeKey, typeLabel) ->
+                                    DropdownMenuItem(
+                                        text = { Text(typeLabel) },
+                                        onClick = {
+                                            productType = typeKey
+                                            isDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (productName.isNotBlank() && !isDuplicate) {
+                                viewModel.addProduct(productName, productType)
+                                showAddProductDialog = false
+                            }
+                        },
+                        enabled = productName.isNotBlank() && !isDuplicate
+                    ) {
+                        Text("Создать")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddProductDialog = false }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
+
         viewModel.importPreviewState?.let { preview ->
             if (preview.conflicts.isNotEmpty()) {
                 AlertDialog(

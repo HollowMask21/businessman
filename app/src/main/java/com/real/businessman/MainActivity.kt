@@ -67,7 +67,10 @@ class MainActivity : ComponentActivity() {
                     Surface(modifier = Modifier.padding(paddingValues)) {
                         when (selectedTab) {
                             0 -> ProductsScreen(viewModel = productViewModel)
-                            1 -> TransactionsScreen(viewModel = transactionViewModel)
+                            1 -> TransactionsScreen(
+                                transactionViewModel = transactionViewModel,
+                                productViewModel = productViewModel
+                            )
                         }
                     }
                 }

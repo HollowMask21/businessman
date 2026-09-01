@@ -7,6 +7,12 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.poi.ss.usermodel.*
+import org.apache.poi.ss.usermodel.Cell
+import org.apache.poi.ss.usermodel.CellType
+import org.apache.poi.ss.usermodel.DateUtil
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class FirebaseExcelImporter(private val repository: FirebaseRepository) {
     private val db = FirebaseFirestore.getInstance()
@@ -54,7 +60,10 @@ class FirebaseExcelImporter(private val repository: FirebaseRepository) {
                 val price = row.getCell(colPrice)?.numericCellValue ?: 0.0
                 val quantity = row.getCell(colQty)?.numericCellValue ?: 1.0
                 val total = if (colTotal != -1) row.getCell(colTotal)?.numericCellValue ?: (price * quantity) else (price * quantity)
-                val date = row.getCell(colDate)?.toString()?.trim() ?: ""
+
+                // Считывание и форматирование даты в формат "дд.мм.гггг"
+                val dateCell = if (colDate != -1) row.getCell(colDate) else null
+                val date = getFormattedDateFromCell(dateCell)
 
                 // Проверяем, существует ли товар в Firebase, и если нет — создаем его в коллекции products
                 val existingProductsSnapshot = db.collection("products")
@@ -96,6 +105,53 @@ class FirebaseExcelImporter(private val repository: FirebaseRepository) {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun getFormattedDateFromCell(cell: Cell?): String {
+        if (cell == null) return ""
+
+        val targetFormat = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+
+        return when (cell.cellType) {
+            // Если в ячейке Excel установлен формат "Дата"
+            CellType.NUMERIC -> {
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    val date: Date = cell.dateCellValue
+                    targetFormat.format(date)
+                } else {
+                    ""
+                }
+            }
+            // Если дата записана текстовым значением (например, "2024-04-15" или "15/04/2024")
+            CellType.STRING -> {
+                val rawText = cell.stringCellValue.trim()
+                normalizeDateString(rawText)
+            }
+            else -> ""
+        }
+    }
+
+    // Приведение разрозненных текстовых форматов к "dd.MM.yyyy"
+    private fun normalizeDateString(rawDate: String): String {
+        val supportedFormats = listOf(
+            SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()),
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
+            SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+        )
+
+        for (format in supportedFormats) {
+            try {
+                format.isLenient = false
+                val parsedDate = format.parse(rawDate)
+                if (parsedDate != null) {
+                    return SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(parsedDate)
+                }
+            } catch (_: Exception) {
+                // Пробуем следующий формат
+            }
+        }
+        return rawDate // Если распарсить не удалось, возвращаем как есть
     }
 
     private fun getCellValueAsString(cell: Cell?): String {
