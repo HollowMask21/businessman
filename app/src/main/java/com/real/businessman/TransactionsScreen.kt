@@ -21,7 +21,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.database.Transaction
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,6 +37,18 @@ fun TransactionsScreen(
     val isLoading by transactionViewModel.isLoading.collectAsStateWithLifecycle()
 
     var showAddDialog by remember { mutableStateOf(false) }
+
+    // Сортировка транзакций от старых к новым
+    val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
+    val sortedTransactions = remember(transactions) {
+        transactions.sortedBy { transaction ->
+            try {
+                dateFormat.parse(transaction.date)
+            } catch (_: Exception) {
+                Date(0) // Запасное значение для некорректных дат
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -56,22 +70,19 @@ fun TransactionsScreen(
             contentAlignment = Alignment.Center
         ) {
             when {
-                // 1. Если данные уже есть — сразу показываем список (даже если идет фоновое обновление)
-                transactions.isNotEmpty() -> {
+                sortedTransactions.isNotEmpty() -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(transactions) { transaction ->
+                        items(sortedTransactions) { transaction ->
                             TransactionItemCard(transaction = transaction)
                         }
                     }
                 }
-                // 2. Если списка нет и идет первая загрузка — показываем индикатор
                 isLoading -> {
                     CircularProgressIndicator()
                 }
-                // 3. Если загрузка завершена и транзакций действительно нет — показываем текст
                 else -> {
                     Text(
                         text = "Транзакций пока нет.\nИмпортируйте Excel или создайте запись.",
@@ -110,7 +121,6 @@ fun AddTransactionDialog(
     var selectedProduct by remember { mutableStateOf("") }
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Текущая дата по умолчанию (ДД.ММ.ГГГГ)
     val currentDay = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.DAY_OF_MONTH))
     val currentMonth = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.MONTH) + 1)
     val currentYear = calendar.get(Calendar.YEAR)
@@ -122,7 +132,6 @@ fun AddTransactionDialog(
 
     val typeOptions = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
 
-    // Окно выбора даты
     val datePickerDialog = DatePickerDialog(
         context,
         { _, year, month, dayOfMonth ->
@@ -135,7 +144,6 @@ fun AddTransactionDialog(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
-    // Автоматический расчет суммы
     val quantityVal = quantityText.replace(",", ".").toDoubleOrNull() ?: 0.0
     val priceVal = priceText.replace(",", ".").toDoubleOrNull() ?: 0.0
     val totalSum = quantityVal * priceVal
@@ -150,7 +158,6 @@ fun AddTransactionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // 1. Выбор типа операции
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     typeOptions.forEach { (typeKey, typeLabel) ->
                         FilterChip(
@@ -161,7 +168,6 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 2. Выбор товара (выпадающий список)
                 ExposedDropdownMenuBox(
                     expanded = isDropdownExpanded,
                     onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
@@ -202,7 +208,6 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 3. Выбор даты
                 OutlinedTextField(
                     value = selectedDate,
                     onValueChange = {},
@@ -218,7 +223,6 @@ fun AddTransactionDialog(
                         .clickable { datePickerDialog.show() }
                 )
 
-                // 4. Количество и цена
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = quantityText,
@@ -239,7 +243,6 @@ fun AddTransactionDialog(
                     )
                 }
 
-                // 5. Автоматически пересчитываемая итоговая сумма
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -262,7 +265,6 @@ fun AddTransactionDialog(
                     }
                 }
 
-                // 6. Опциональный комментарий
                 OutlinedTextField(
                     value = commentText,
                     onValueChange = { commentText = it },
