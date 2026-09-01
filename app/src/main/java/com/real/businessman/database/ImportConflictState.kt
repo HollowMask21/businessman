@@ -1,6 +1,7 @@
 package com.real.businessman.database
 
 data class ConflictItem(
+    val documentId: String,
     val productName: String,
     val date: String,
     val oldPrice: Double,

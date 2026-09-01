@@ -85,6 +85,7 @@ class FirebaseRepository {
                 if (oldItem != null && newItem != null && (oldItem.pricePerUnit != newItem.pricePerUnit || oldItem.quantity != newItem.quantity)) {
                     conflicts.add(
                         ConflictItem(
+                            documentId = existingMatch.id,
                             productName = newItem.productName,
                             oldPrice = oldItem.pricePerUnit,
                             newPrice = newItem.pricePerUnit,
@@ -112,6 +113,41 @@ class FirebaseRepository {
             val docRef = db.collection("transactions").document()
             batch.set(docRef, transaction)
         }
+        batch.commit().await()
+    }
+    // Обновление конфликтных записей и сохранение новых за один батч
+    suspend fun resolveConflictsAndSave(
+        newTransactions: List<Transaction>,
+        conflictsToUpdate: List<ConflictItem>
+    ) {
+        val batch = db.batch()
+
+        // 1. Новые транзакции создаем как новые документы
+        for (transaction in newTransactions) {
+            val docRef = db.collection("transactions").document()
+            batch.set(docRef, transaction)
+        }
+
+        // 2. Существующие конфликтные записи перезаписываем по их реальному documentId
+        for (conflict in conflictsToUpdate) {
+            val docRef = db.collection("transactions").document(conflict.documentId)
+
+            val updatedTransaction = Transaction(
+                type = conflict.type,
+                totalAmount = conflict.newPrice * conflict.newQuantity,
+                date = conflict.date,
+                comment = "Импорт из Excel (обновлено)",
+                items = listOf(
+                    TransactionItem(
+                        productName = conflict.productName,
+                        quantity = conflict.newQuantity,
+                        pricePerUnit = conflict.newPrice
+                    )
+                )
+            )
+            batch.set(docRef, updatedTransaction)
+        }
+
         batch.commit().await()
     }
 }

@@ -80,28 +80,16 @@ class ProductViewModel(
     // Подтвердить и принудительно обновить/дописать данные с учетом разрешения конфликтов
     fun confirmAndForceImport(preview: ImportPreviewState) {
         viewModelScope.launch(Dispatchers.IO) {
-            _importState.value = "Сохранение изменений..."
+            _importState.value = "Обновление данных..."
 
-            // Превращаем конфликтующие элементы обратно в транзакции для сохранения
-            val resolvedConflictsAsTransactions = preview.conflicts.map { conflict ->
-                Transaction(
-                    type = conflict.type,
-                    totalAmount = conflict.newPrice * conflict.newQuantity,
-                    items = listOf(
-                        TransactionItem(
-                            productName = conflict.productName,
-                            quantity = conflict.newQuantity,
-                            pricePerUnit = conflict.newPrice
-                        )
-                    )
-                )
-            }
-
-            val allToSave = preview.newTransactions + resolvedConflictsAsTransactions
-            repository.saveTransactions(allToSave)
+            // Вызываем метод разрешения конфликтов и сохранения в репозитории
+            repository.resolveConflictsAndSave(
+                newTransactions = preview.newTransactions,
+                conflictsToUpdate = preview.conflicts
+            )
 
             importPreviewState = null
-            _importState.value = "Данные успешно обновлены и сохранены!"
+            _importState.value = "Данные успешно обновлены!"
         }
     }
 
