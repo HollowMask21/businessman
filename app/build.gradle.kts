@@ -65,6 +65,7 @@ dependencies {
 
     // Подключаем Cloud Firestore
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth-ktx")
 
     // Excel импорт
     implementation("org.apache.poi:poi:5.2.5")

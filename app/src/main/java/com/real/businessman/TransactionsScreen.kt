@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,6 +30,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionsScreen(
+    userRole: UserRole,
     transactionViewModel: TransactionViewModel,
     productViewModel: ProductViewModel
 ) {
@@ -58,7 +60,18 @@ fun TransactionsScreen(
                     TextButton(onClick = { showAddDialog = true }) {
                         Text("+ Операция")
                     }
+
+                    // Импорт Excel отображается ТОЛЬКО если у пользователя есть права (ADMIN)
+                    if (userRole.canImportExcel) {
+                        IconButton(onClick = { /* Вызов функции выбора файла Excel */ }) {
+                            Icon(
+                                imageVector = Icons.Default.FileOpen,
+                                contentDescription = "Импорт из Excel"
+                            )
+                        }
+                    }
                 }
+
             )
         }
     ) { padding ->

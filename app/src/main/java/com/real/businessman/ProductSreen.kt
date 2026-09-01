@@ -16,7 +16,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProductsScreen(viewModel: ProductViewModel) {
+fun ProductsScreen(
+    userRole: UserRole,
+    viewModel: ProductViewModel
+) {
     val context = LocalContext.current
 
     val products by viewModel.products.collectAsStateWithLifecycle()
@@ -38,37 +41,41 @@ fun ProductsScreen(viewModel: ProductViewModel) {
                 Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            selectedType = "SALE"
-                            filePickerLauncher.launch(
-                                arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
+                // Кнопки импорта из Excel доступны только Администратору (canImportExcel)
+                if (userRole.canImportExcel) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("Импорт Продаж")
+                        Button(
+                            onClick = {
+                                selectedType = "SALE"
+                                filePickerLauncher.launch(
+                                    arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Импорт Продаж")
+                        }
+
+                        Button(
+                            onClick = {
+                                selectedType = "PURCHASE"
+                                filePickerLauncher.launch(
+                                    arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                )
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Импорт Расходов")
+                        }
                     }
 
-                    Button(
-                        onClick = {
-                            selectedType = "PURCHASE"
-                            filePickerLauncher.launch(
-                                arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Импорт Расходов")
-                    }
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
+                // Добавление позиций вручную доступно всем ролям (ADMIN и WORKER)
                 FilledTonalButton(
                     onClick = { showAddProductDialog = true },
                     modifier = Modifier.fillMaxWidth()
@@ -135,7 +142,7 @@ fun ProductsScreen(viewModel: ProductViewModel) {
             }
         }
 
-        // Диалог создания новой записи с выпадающим списком (ExposedDropdownMenuBox)
+        // Диалог создания новой записи доступен и для WORKER, и для ADMIN
         if (showAddProductDialog) {
             var productName by remember { mutableStateOf("") }
             var productType by remember { mutableStateOf("PRODUCT") }
@@ -169,7 +176,6 @@ fun ProductsScreen(viewModel: ProductViewModel) {
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Выпадающий список выбора типа
                         ExposedDropdownMenuBox(
                             expanded = isDropdownExpanded,
                             onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
