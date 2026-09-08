@@ -1,6 +1,5 @@
 package com.real.businessman.screens
 
-import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -9,19 +8,20 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -32,10 +32,23 @@ import com.real.businessman.database.Product
 import com.real.businessman.database.Transaction
 import com.real.businessman.viewmodels.ProductViewModel
 import com.real.businessman.viewmodels.TransactionViewModel
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
+
+enum class DateFilterType { ALL, YEAR, MONTH, CUSTOM }
+
+// Вспомогательная функция форматирования чисел (10000 -> 10 000, 10.0 -> 10, 10.5 -> 10.5)
+private fun Double.formatAmount(): String {
+    val symbols = DecimalFormatSymbols(Locale.getDefault()).apply {
+        groupingSeparator = ' '
+    }
+    return DecimalFormat("#,##0.##", symbols).format(this)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,8 +64,31 @@ fun TransactionsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Состояние фильтрации по категории: null - все, "EXPENSE" - закупки и расходы, "SALE" - продажи
+    // Состояние прокрутки списка
+    val listState = rememberLazyListState()
+
+    // Фильтр по категориям: null - все, "EXPENSE" - закупки и расходы, "SALE" - продажи
     var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
+
+    // Фильтр по дате и периодам
+    var dateFilterType by remember { mutableStateOf(DateFilterType.ALL) }
+    var selectedMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
+    var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
+    var customStartDate by remember { mutableStateOf<String?>(null) }
+    var customEndDate by remember { mutableStateOf<String?>(null) }
+    var showDateFilterDialog by remember { mutableStateOf(false) }
+
+    // Сброс прокрутки в начало при изменении любого из фильтров
+    LaunchedEffect(
+        selectedCategoryFilter,
+        dateFilterType,
+        selectedMonth,
+        selectedYear,
+        customStartDate,
+        customEndDate
+    ) {
+        listState.scrollToItem(0)
+    }
 
     // Состояния множественного выбора
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -75,7 +111,7 @@ fun TransactionsScreen(
 
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     val sortedTransactions = remember(transactions) {
-        transactions.sortedBy { transaction ->
+        transactions.sortedByDescending { transaction ->
             try {
                 dateFormat.parse(transaction.date)
             } catch (_: Exception) {
@@ -84,21 +120,73 @@ fun TransactionsScreen(
         }
     }
 
-    // Отфильтрованный список транзакций в зависимости от выбранного блока
-    val displayedTransactions = remember(sortedTransactions, selectedCategoryFilter) {
-        when (selectedCategoryFilter) {
-            "SALE" -> sortedTransactions.filter { it.type == "SALE" }
-            "EXPENSE" -> sortedTransactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }
-            else -> sortedTransactions
+    // Фильтрация по дате/периоду
+    val dateFilteredTransactions = remember(
+        sortedTransactions,
+        dateFilterType,
+        selectedYear,
+        selectedMonth,
+        customStartDate,
+        customEndDate
+    ) {
+        sortedTransactions.filter { transaction ->
+            val tDate = try { dateFormat.parse(transaction.date) } catch (_: Exception) { null }
+            if (tDate == null) return@filter true
+
+            val cal = Calendar.getInstance().apply { time = tDate }
+
+            when (dateFilterType) {
+                DateFilterType.ALL -> true
+                DateFilterType.YEAR -> {
+                    cal.get(Calendar.YEAR) == selectedYear
+                }
+                DateFilterType.MONTH -> {
+                    cal.get(Calendar.MONTH) == selectedMonth && cal.get(Calendar.YEAR) == selectedYear
+                }
+                DateFilterType.CUSTOM -> {
+                    val start = customStartDate?.let { try { dateFormat.parse(it) } catch (_: Exception) { null } }
+                    val end = customEndDate?.let { try { dateFormat.parse(it) } catch (_: Exception) { null } }
+
+                    val isAfterStart = start == null || !tDate.before(start)
+                    val isBeforeEnd = end == null || !tDate.after(end)
+                    isAfterStart && isBeforeEnd
+                }
+            }
         }
     }
 
-    // Расчет общих сумм (всегда считывается от всего списка)
-    val totalSales = remember(transactions) {
-        transactions.filter { it.type == "SALE" }.sumOf { it.totalAmount }
+    // Отображаемый список с учетом фильтрации по категории
+    val displayedTransactions = remember(dateFilteredTransactions, selectedCategoryFilter) {
+        when (selectedCategoryFilter) {
+            "SALE" -> dateFilteredTransactions.filter { it.type == "SALE" }
+            "EXPENSE" -> dateFilteredTransactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }
+            else -> dateFilteredTransactions
+        }
     }
-    val totalPurchasesAndExpenses = remember(transactions) {
-        transactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }.sumOf { it.totalAmount }
+
+    // Расчет сумм за выбранный период
+    val totalSales = remember(dateFilteredTransactions) {
+        dateFilteredTransactions.filter { it.type == "SALE" }.sumOf { it.totalAmount }
+    }
+    val totalPurchasesAndExpenses = remember(dateFilteredTransactions) {
+        dateFilteredTransactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }.sumOf { it.totalAmount }
+    }
+
+    val monthNames = remember {
+        listOf("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+    }
+
+    val periodLabel = remember(dateFilterType, selectedMonth, selectedYear, customStartDate, customEndDate) {
+        when (dateFilterType) {
+            DateFilterType.ALL -> "Все время"
+            DateFilterType.YEAR -> "$selectedYear год"
+            DateFilterType.MONTH -> "${monthNames[selectedMonth]} $selectedYear г."
+            DateFilterType.CUSTOM -> {
+                val start = customStartDate ?: "..."
+                val end = customEndDate ?: "..."
+                "$start - $end"
+            }
+        }
     }
 
     Scaffold(
@@ -138,10 +226,7 @@ fun TransactionsScreen(
                             },
                             enabled = selectedIds.size == 1
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Редактировать"
-                            )
+                            Icon(imageVector = Icons.Default.Edit, contentDescription = "Редактировать")
                         }
 
                         IconButton(onClick = {
@@ -184,6 +269,15 @@ fun TransactionsScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
+            // Кнопка выбора периода
+            FilterChip(
+                selected = dateFilterType != DateFilterType.ALL,
+                onClick = { showDateFilterDialog = true },
+                label = { Text("Период: $periodLabel") },
+                leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null) },
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+
             // Интерактивные блоки сумм
             Row(
                 modifier = Modifier
@@ -220,7 +314,7 @@ fun TransactionsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "-$totalPurchasesAndExpenses ₽",
+                            text = "-${totalPurchasesAndExpenses.formatAmount()} ₽",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFC62828)
@@ -254,7 +348,7 @@ fun TransactionsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "+$totalSales ₽",
+                            text = "+${totalSales.formatAmount()} ₽",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF2E7D32)
@@ -273,6 +367,7 @@ fun TransactionsScreen(
                 when {
                     displayedTransactions.isNotEmpty() -> {
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier.fillMaxSize(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -304,8 +399,8 @@ fun TransactionsScreen(
                     }
                     else -> {
                         Text(
-                            text = if (selectedCategoryFilter != null) {
-                                "В этой категории нет транзакций"
+                            text = if (selectedCategoryFilter != null || dateFilterType != DateFilterType.ALL) {
+                                "За выбранный период / категорию операций не найдено"
                             } else {
                                 "Транзакций пока нет.\nСоздайте новую запись."
                             },
@@ -316,6 +411,26 @@ fun TransactionsScreen(
                     }
                 }
             }
+        }
+
+        // Диалог фильтрации по датам
+        if (showDateFilterDialog) {
+            DateFilterSelectionDialog(
+                currentFilterType = dateFilterType,
+                currentMonth = selectedMonth,
+                currentYear = selectedYear,
+                currentStartDate = customStartDate,
+                currentEndDate = customEndDate,
+                onDismiss = { showDateFilterDialog = false },
+                onApply = { type, month, year, start, end ->
+                    dateFilterType = type
+                    selectedMonth = month
+                    selectedYear = year
+                    customStartDate = start
+                    customEndDate = end
+                    showDateFilterDialog = false
+                }
+            )
         }
 
         // Диалог создания
@@ -338,8 +453,8 @@ fun TransactionsScreen(
                 initialType = target.type,
                 initialDate = target.date,
                 initialProduct = firstItem?.productName ?: "",
-                initialQuantity = firstItem?.quantity?.toString() ?: "",
-                initialPrice = firstItem?.pricePerUnit?.toString() ?: "",
+                initialQuantity = firstItem?.quantity?.formatAmount()?.replace(" ", "") ?: "",
+                initialPrice = firstItem?.pricePerUnit?.formatAmount()?.replace(" ", "") ?: "",
                 initialComment = target.comment,
                 isEditMode = true,
                 onDismiss = { transactionToEdit = null },
@@ -389,6 +504,230 @@ fun TransactionsScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun DateFilterSelectionDialog(
+    currentFilterType: DateFilterType,
+    currentMonth: Int,
+    currentYear: Int,
+    currentStartDate: String?,
+    currentEndDate: String?,
+    onDismiss: () -> Unit,
+    onApply: (type: DateFilterType, month: Int, year: Int, startDate: String?, endDate: String?) -> Unit
+) {
+    var tempFilterType by remember { mutableStateOf(currentFilterType) }
+    var tempMonth by remember { mutableStateOf(currentMonth) }
+    var tempYear by remember { mutableStateOf(currentYear) }
+
+    val monthNames = listOf("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+    val currentCalendarYear = Calendar.getInstance().get(Calendar.YEAR)
+    val yearList = (currentCalendarYear - 5..currentCalendarYear + 2).toList()
+
+    var isMonthDropdownExpanded by remember { mutableStateOf(false) }
+    var isYearDropdownExpanded by remember { mutableStateOf(false) }
+
+    val utcFormat = remember {
+        SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
+
+    val initialStartMillis = remember(currentStartDate) {
+        currentStartDate?.let { try { utcFormat.parse(it)?.time } catch (_: Exception) { null } }
+    }
+    val initialEndMillis = remember(currentEndDate) {
+        currentEndDate?.let { try { utcFormat.parse(it)?.time } catch (_: Exception) { null } }
+    }
+
+    val dateRangePickerState = rememberDateRangePickerState(
+        initialSelectedStartDateMillis = initialStartMillis,
+        initialSelectedEndDateMillis = initialEndMillis
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Фильтр по периоду") },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                // Выбор типа фильтра
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    FilterChip(
+                        selected = tempFilterType == DateFilterType.ALL,
+                        onClick = { tempFilterType = DateFilterType.ALL },
+                        label = { Text("Все") }
+                    )
+                    FilterChip(
+                        selected = tempFilterType == DateFilterType.YEAR,
+                        onClick = { tempFilterType = DateFilterType.YEAR },
+                        label = { Text("Год") }
+                    )
+                    FilterChip(
+                        selected = tempFilterType == DateFilterType.MONTH,
+                        onClick = { tempFilterType = DateFilterType.MONTH },
+                        label = { Text("Месяц") }
+                    )
+                    FilterChip(
+                        selected = tempFilterType == DateFilterType.CUSTOM,
+                        onClick = { tempFilterType = DateFilterType.CUSTOM },
+                        label = { Text("Период") }
+                    )
+                }
+
+                when (tempFilterType) {
+                    DateFilterType.ALL -> {
+                        Text(
+                            text = "Отображаются все операции за всё время.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    DateFilterType.YEAR -> {
+                        ExposedDropdownMenuBox(
+                            expanded = isYearDropdownExpanded,
+                            onExpandedChange = { isYearDropdownExpanded = !isYearDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = "$tempYear год",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Выберите год") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isYearDropdownExpanded) },
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isYearDropdownExpanded,
+                                onDismissRequest = { isYearDropdownExpanded = false }
+                            ) {
+                                yearList.forEach { year ->
+                                    DropdownMenuItem(
+                                        text = { Text("$year год") },
+                                        onClick = {
+                                            tempYear = year
+                                            isYearDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    DateFilterType.MONTH -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ExposedDropdownMenuBox(
+                                expanded = isMonthDropdownExpanded,
+                                onExpandedChange = { isMonthDropdownExpanded = !isMonthDropdownExpanded },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = monthNames[tempMonth],
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Месяц") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isMonthDropdownExpanded) },
+                                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = isMonthDropdownExpanded,
+                                    onDismissRequest = { isMonthDropdownExpanded = false }
+                                ) {
+                                    monthNames.forEachIndexed { index, name ->
+                                        DropdownMenuItem(
+                                            text = { Text(name) },
+                                            onClick = {
+                                                tempMonth = index
+                                                isMonthDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            ExposedDropdownMenuBox(
+                                expanded = isYearDropdownExpanded,
+                                onExpandedChange = { isYearDropdownExpanded = !isYearDropdownExpanded },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = "$tempYear год",
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Год") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isYearDropdownExpanded) },
+                                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = isYearDropdownExpanded,
+                                    onDismissRequest = { isYearDropdownExpanded = false }
+                                ) {
+                                    yearList.forEach { year ->
+                                        DropdownMenuItem(
+                                            text = { Text("$year год") },
+                                            onClick = {
+                                                tempYear = year
+                                                isYearDropdownExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    DateFilterType.CUSTOM -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(360.dp)
+                        ) {
+                            DateRangePicker(
+                                state = dateRangePickerState,
+                                title = null,
+                                headline = null,
+                                showModeToggle = false,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val formattedStart = dateRangePickerState.selectedStartDateMillis?.let { utcFormat.format(Date(it)) }
+                    val formattedEnd = dateRangePickerState.selectedEndDateMillis?.let { utcFormat.format(Date(it)) }
+
+                    onApply(
+                        tempFilterType,
+                        tempMonth,
+                        tempYear,
+                        formattedStart,
+                        formattedEnd
+                    )
+                }
+            ) {
+                Text("Применить")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun AddEditTransactionDialog(
     products: List<Product>,
     initialType: String = "SALE",
@@ -401,7 +740,6 @@ fun AddEditTransactionDialog(
     onDismiss: () -> Unit,
     onConfirm: (type: String, date: String, productName: String, quantity: Double, price: Double, comment: String) -> Unit
 ) {
-    val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
     var selectedType by remember { mutableStateOf(initialType) }
@@ -437,19 +775,10 @@ fun AddEditTransactionDialog(
     var priceText by remember { mutableStateOf(initialPrice) }
     var commentText by remember { mutableStateOf(initialComment) }
 
-    val typeOptions = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
+    // Состояние вызова диалога встроенного календаря Material3 DatePicker
+    var showDatePickerDialog by remember { mutableStateOf(false) }
 
-    val datePickerDialog = DatePickerDialog(
-        context,
-        { _, year, month, dayOfMonth ->
-            val dayStr = String.format(Locale.getDefault(), "%02d", dayOfMonth)
-            val monthStr = String.format(Locale.getDefault(), "%02d", month + 1)
-            selectedDate = "$dayStr.$monthStr.$year"
-        },
-        calendar.get(Calendar.YEAR),
-        calendar.get(Calendar.MONTH),
-        calendar.get(Calendar.DAY_OF_MONTH)
-    )
+    val typeOptions = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
 
     val quantityVal = quantityText.replace(",", ".").toDoubleOrNull() ?: 0.0
     val priceVal = priceText.replace(",", ".").toDoubleOrNull() ?: 0.0
@@ -524,20 +853,31 @@ fun AddEditTransactionDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    value = selectedDate,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Дата") },
-                    trailingIcon = {
-                        IconButton(onClick = { datePickerDialog.show() }) {
-                            Icon(Icons.Default.DateRange, contentDescription = "Выбрать дату")
-                        }
-                    },
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { datePickerDialog.show() }
-                )
+                        .clickable { showDatePickerDialog = true }
+                ) {
+                    OutlinedTextField(
+                        value = selectedDate,
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = false,
+                        label = { Text("Дата") },
+                        trailingIcon = {
+                            IconButton(onClick = { showDatePickerDialog = true }) {
+                                Icon(Icons.Default.DateRange, contentDescription = "Выбрать дату")
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -574,7 +914,7 @@ fun AddEditTransactionDialog(
                     ) {
                         Text("Итоговая сумма:", style = MaterialTheme.typography.bodyMedium)
                         Text(
-                            text = "$totalSum ₽",
+                            text = "${totalSum.formatAmount()} ₽",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -608,6 +948,47 @@ fun AddEditTransactionDialog(
             }
         }
     )
+
+    // Всплывающий календарь Material3 DatePicker для выбора одиночной даты
+    if (showDatePickerDialog) {
+        val utcFormat = remember {
+            SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
+        }
+        val initialMillis = remember(selectedDate) {
+            try { utcFormat.parse(selectedDate)?.time } catch (_: Exception) { null }
+        }
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = initialMillis
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDate = utcFormat.format(Date(millis))
+                        }
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("ОК")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("Отмена")
+                }
+            }
+        ) {
+            DatePicker(
+                state = datePickerState,
+                showModeToggle = false
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -685,7 +1066,7 @@ fun TransactionItemCard(
                 }
 
                 Text(
-                    text = "$prefix${transaction.totalAmount} ₽",
+                    text = "$prefix${transaction.totalAmount.formatAmount()} ₽",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = amountColor
@@ -712,11 +1093,11 @@ fun TransactionItemCard(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${item.productName} × ${item.quantity}",
+                                    text = "${item.productName} × ${item.quantity.formatAmount()}",
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
-                                    text = "${item.pricePerUnit * item.quantity} ₽",
+                                    text = "${(item.pricePerUnit * item.quantity).formatAmount()} ₽",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
