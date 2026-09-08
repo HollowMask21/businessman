@@ -2,6 +2,7 @@ package com.real.businessman.screens
 
 import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -14,7 +15,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -28,10 +28,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.UserRole
+import com.real.businessman.database.Product
 import com.real.businessman.database.Transaction
 import com.real.businessman.viewmodels.ProductViewModel
 import com.real.businessman.viewmodels.TransactionViewModel
-import com.real.businessman.database.Product
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -50,6 +50,9 @@ fun TransactionsScreen(
     val statusMessage by transactionViewModel.statusMessage.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Состояние фильтрации по категории: null - все, "EXPENSE" - закупки и расходы, "SALE" - продажи
+    var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
 
     // Состояния множественного выбора
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -79,6 +82,23 @@ fun TransactionsScreen(
                 Date(0)
             }
         }
+    }
+
+    // Отфильтрованный список транзакций в зависимости от выбранного блока
+    val displayedTransactions = remember(sortedTransactions, selectedCategoryFilter) {
+        when (selectedCategoryFilter) {
+            "SALE" -> sortedTransactions.filter { it.type == "SALE" }
+            "EXPENSE" -> sortedTransactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }
+            else -> sortedTransactions
+        }
+    }
+
+    // Расчет общих сумм (всегда считывается от всего списка)
+    val totalSales = remember(transactions) {
+        transactions.filter { it.type == "SALE" }.sumOf { it.totalAmount }
+    }
+    val totalPurchasesAndExpenses = remember(transactions) {
+        transactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }.sumOf { it.totalAmount }
     }
 
     Scaffold(
@@ -111,7 +131,6 @@ fun TransactionsScreen(
                         }
                     },
                     actions = {
-                        // Редактирование (доступно только когда выбрана ровно 1 запись)
                         IconButton(
                             onClick = {
                                 val selectedId = selectedIds.firstOrNull()
@@ -125,18 +144,16 @@ fun TransactionsScreen(
                             )
                         }
 
-                        // Выбрать все
                         IconButton(onClick = {
-                            selectedIds = if (selectedIds.size == sortedTransactions.size) {
+                            selectedIds = if (selectedIds.size == displayedTransactions.size) {
                                 emptySet()
                             } else {
-                                sortedTransactions.map { it.id }.toSet()
+                                displayedTransactions.map { it.id }.toSet()
                             }
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
                         }
 
-                        // Удаление выбранных элементов
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -156,66 +173,147 @@ fun TransactionsScreen(
                         TextButton(onClick = { showAddDialog = true }) {
                             Text("+ Операция")
                         }
-
-                        if (userRole.canImportExcel) {
-                            IconButton(onClick = { /* Вызов импорта */ }) {
-                                Icon(
-                                    imageVector = Icons.Default.FileOpen,
-                                    contentDescription = "Импорт из Excel"
-                                )
-                            }
-                        }
                     }
                 )
             }
         }
     ) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp),
-            contentAlignment = Alignment.Center
+                .padding(horizontal = 16.dp)
         ) {
-            when {
-                sortedTransactions.isNotEmpty() -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(sortedTransactions, key = { it.id }) { transaction ->
-                            val isSelected = selectedIds.contains(transaction.id)
+            // Интерактивные блоки сумм
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val isExpenseSelected = selectedCategoryFilter == "EXPENSE"
+                val isSaleSelected = selectedCategoryFilter == "SALE"
 
-                            TransactionItemCard(
-                                transaction = transaction,
-                                isSelected = isSelected,
-                                isSelectionMode = isSelectionMode,
-                                onSelectToggle = {
-                                    selectedIds = if (isSelected) {
-                                        selectedIds - transaction.id
-                                    } else {
-                                        selectedIds + transaction.id
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) {
-                                        selectedIds = setOf(transaction.id)
-                                    }
-                                }
-                            )
+                // Блок 1: Закупки и расходы
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            selectedCategoryFilter = if (isExpenseSelected) null else "EXPENSE"
+                        },
+                    border = if (isExpenseSelected) BorderStroke(2.dp, Color(0xFFC62828)) else null,
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isExpenseSelected) {
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
                         }
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Закупки и расходы",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "-$totalPurchasesAndExpenses ₽",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFC62828)
+                        )
                     }
                 }
-                isLoading -> {
-                    CircularProgressIndicator()
-                }
-                else -> {
-                    Text(
-                        text = "Транзакций пока нет.\nИмпортируйте Excel или создайте запись.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+
+                // Блок 2: Продажи
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            selectedCategoryFilter = if (isSaleSelected) null else "SALE"
+                        },
+                    border = if (isSaleSelected) BorderStroke(2.dp, Color(0xFF2E7D32)) else null,
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isSaleSelected) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                        }
                     )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "Продажи",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "+$totalSales ₽",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Список транзакций
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    displayedTransactions.isNotEmpty() -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(displayedTransactions, key = { it.id }) { transaction ->
+                                val isSelected = selectedIds.contains(transaction.id)
+
+                                TransactionItemCard(
+                                    transaction = transaction,
+                                    isSelected = isSelected,
+                                    isSelectionMode = isSelectionMode,
+                                    onSelectToggle = {
+                                        selectedIds = if (isSelected) {
+                                            selectedIds - transaction.id
+                                        } else {
+                                            selectedIds + transaction.id
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isSelectionMode) {
+                                            selectedIds = setOf(transaction.id)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    isLoading -> {
+                        CircularProgressIndicator()
+                    }
+                    else -> {
+                        Text(
+                            text = if (selectedCategoryFilter != null) {
+                                "В этой категории нет транзакций"
+                            } else {
+                                "Транзакций пока нет.\nСоздайте новую запись."
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -261,7 +359,7 @@ fun TransactionsScreen(
             )
         }
 
-        // Диалог удаления (для одной или нескольких выбранных записей)
+        // Диалог удаления
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
@@ -292,7 +390,7 @@ fun TransactionsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditTransactionDialog(
-    products: List<Product>, // Список объектов Product
+    products: List<Product>,
     initialType: String = "SALE",
     initialDate: String = "",
     initialProduct: String = "",
@@ -310,7 +408,6 @@ fun AddEditTransactionDialog(
     var selectedProduct by remember { mutableStateOf(initialProduct) }
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Фильтрация продуктов в зависимости от выбранного типа операции
     val filteredProducts = remember(selectedType, products) {
         products.filter { product ->
             when (selectedType) {
@@ -322,7 +419,6 @@ fun AddEditTransactionDialog(
         }
     }
 
-    // Автоматический сброс выбранного товара, если при смене типа операции его нет в отфильтрованном списке
     LaunchedEffect(selectedType) {
         if (filteredProducts.none { it.name == selectedProduct }) {
             selectedProduct = ""
@@ -369,7 +465,6 @@ fun AddEditTransactionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Выбор типа операции
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     typeOptions.forEach { (typeKey, typeLabel) ->
                         FilterChip(
@@ -380,7 +475,6 @@ fun AddEditTransactionDialog(
                     }
                 }
 
-                // Выпадающий список позиций
                 ExposedDropdownMenuBox(
                     expanded = isDropdownExpanded,
                     onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
@@ -538,6 +632,14 @@ fun TransactionItemCard(
         else -> "Операция"
     }
 
+    val headerTitle = if (transaction.date.isNotBlank()) {
+        "$typeTitle • ${transaction.date}"
+    } else {
+        typeTitle
+    }
+
+    val hasDetails = transaction.items.isNotEmpty() || transaction.comment.isNotBlank()
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -575,20 +677,11 @@ fun TransactionItemCard(
                         )
                     }
 
-                    Column {
-                        Text(
-                            text = typeTitle,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (transaction.date.isNotBlank()) {
-                            Text(
-                                text = transaction.date,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+                    Text(
+                        text = headerTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
 
                 Text(
@@ -599,42 +692,53 @@ fun TransactionItemCard(
                 )
             }
 
-            if (transaction.comment.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = transaction.comment,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            AnimatedVisibility(visible = isExpanded && transaction.items.isNotEmpty()) {
+            AnimatedVisibility(visible = isExpanded && hasDetails) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
-                    Text(
-                        text = "Позиции в чеке:",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
 
-                    transaction.items.forEach { item ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "${item.productName} × ${item.quantity}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "${item.pricePerUnit * item.quantity} ₽",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                    if (transaction.items.isNotEmpty()) {
+                        Text(
+                            text = "Позиции в чеке:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        transaction.items.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "${item.productName} × ${item.quantity}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "${item.pricePerUnit * item.quantity} ₽",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
+                    }
+
+                    if (transaction.comment.isNotBlank()) {
+                        if (transaction.items.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Text(
+                            text = "Комментарий:",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = transaction.comment,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
