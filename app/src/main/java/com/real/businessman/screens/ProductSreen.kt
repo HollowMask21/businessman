@@ -25,6 +25,20 @@ import com.real.businessman.UserRole
 import com.real.businessman.database.Product
 import com.real.businessman.viewmodels.ProductViewModel
 
+// Вспомогательная функция для стилизации полей ввода (заполненный стиль скругленный под кнопку)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun productTextFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+    errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+    errorIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProductsScreen(
@@ -105,6 +119,20 @@ fun ProductsScreen(
                         }
                     },
                     actions = {
+                        // Кнопка редактирования: доступна только если выбрана 1 запись
+                        IconButton(
+                            onClick = {
+                                val selectedId = selectedIds.firstOrNull()
+                                productToEdit = products.find { it.id == selectedId }
+                            },
+                            enabled = selectedIds.size == 1
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Редактировать"
+                            )
+                        }
+
                         IconButton(onClick = {
                             selectedIds = if (selectedIds.size == products.size) {
                                 emptySet()
@@ -114,6 +142,7 @@ fun ProductsScreen(
                         }) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
                         }
+
                         IconButton(onClick = { showDeleteMultipleDialog = true }) {
                             Icon(
                                 Icons.Default.Delete,
@@ -245,25 +274,10 @@ fun ProductsScreen(
                                         )
                                     }
 
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        AssistChip(
-                                            onClick = { },
-                                            label = { Text(getProductTypeLabel(product.type)) }
-                                        )
-
-                                        if (!isSelectionMode) {
-                                            IconButton(onClick = { productToEdit = product }) {
-                                                Icon(
-                                                    Icons.Default.Edit,
-                                                    contentDescription = "Изменить",
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    }
+                                    AssistChip(
+                                        onClick = { },
+                                        label = { Text(getProductTypeLabel(product.type)) }
+                                    )
                                 }
                             }
                         }
@@ -321,12 +335,14 @@ fun ProductsScreen(
                 title = { Text("Новая запись в каталоге") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
+                        TextField(
                             value = productName,
                             onValueChange = { productName = it },
                             label = { Text("Наименование") },
                             singleLine = true,
                             isError = isDuplicate,
+                            shape = MaterialTheme.shapes.medium,
+                            colors = productTextFieldColors(),
                             supportingText = {
                                 if (isDuplicate) {
                                     Text("Позиция с таким названием уже есть в базе", color = MaterialTheme.colorScheme.error)
@@ -340,13 +356,14 @@ fun ProductsScreen(
                             onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            OutlinedTextField(
+                            TextField(
                                 value = getProductTypeLabel(productType),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Тип записи") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = productTextFieldColors(),
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
                             )
 
@@ -354,7 +371,7 @@ fun ProductsScreen(
                                 expanded = isDropdownExpanded,
                                 onDismissRequest = { isDropdownExpanded = false }
                             ) {
-                                typeOptions.forEach { (typeKey, typeLabel) ->
+                                typeOptions.filter { it.first != productType }.forEach { (typeKey, typeLabel) ->
                                     DropdownMenuItem(
                                         text = { Text(typeLabel) },
                                         onClick = {
@@ -399,16 +416,21 @@ fun ProductsScreen(
             }
 
             AlertDialog(
-                onDismissRequest = { productToEdit = null },
+                onDismissRequest = {
+                    productToEdit = null
+                    selectedIds = emptySet()
+                },
                 title = { Text("Редактировать позицию") },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
+                        TextField(
                             value = updatedName,
                             onValueChange = { updatedName = it },
                             label = { Text("Наименование") },
                             singleLine = true,
                             isError = isDuplicate,
+                            shape = MaterialTheme.shapes.medium,
+                            colors = productTextFieldColors(),
                             supportingText = {
                                 if (isDuplicate) {
                                     Text("Позиция с таким названием уже есть в базе", color = MaterialTheme.colorScheme.error)
@@ -422,13 +444,14 @@ fun ProductsScreen(
                             onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            OutlinedTextField(
+                            TextField(
                                 value = getProductTypeLabel(updatedType),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Тип записи") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                shape = MaterialTheme.shapes.medium,
+                                colors = productTextFieldColors(),
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
                             )
 
@@ -436,7 +459,7 @@ fun ProductsScreen(
                                 expanded = isDropdownExpanded,
                                 onDismissRequest = { isDropdownExpanded = false }
                             ) {
-                                typeOptions.forEach { (typeKey, typeLabel) ->
+                                typeOptions.filter { it.first != updatedType }.forEach { (typeKey, typeLabel) ->
                                     DropdownMenuItem(
                                         text = { Text(typeLabel) },
                                         onClick = {
@@ -455,6 +478,7 @@ fun ProductsScreen(
                             if (updatedName.isNotBlank() && !isDuplicate) {
                                 viewModel.updateProduct(targetProduct.id, updatedName, updatedType)
                                 productToEdit = null
+                                selectedIds = emptySet()
                             }
                         },
                         enabled = updatedName.isNotBlank() && !isDuplicate
@@ -463,7 +487,10 @@ fun ProductsScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { productToEdit = null }) {
+                    TextButton(onClick = {
+                        productToEdit = null
+                        selectedIds = emptySet()
+                    }) {
                         Text("Отмена")
                     }
                 }
