@@ -31,6 +31,7 @@ import com.real.businessman.UserRole
 import com.real.businessman.database.Transaction
 import com.real.businessman.viewmodels.ProductViewModel
 import com.real.businessman.viewmodels.TransactionViewModel
+import com.real.businessman.database.Product
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -222,7 +223,7 @@ fun TransactionsScreen(
         // Диалог создания
         if (showAddDialog) {
             AddEditTransactionDialog(
-                products = products.map { it.name },
+                products = products,
                 onDismiss = { showAddDialog = false },
                 onConfirm = { type, date, productName, quantity, price, comment ->
                     transactionViewModel.addManualTransaction(type, date, productName, quantity, price, comment)
@@ -235,7 +236,7 @@ fun TransactionsScreen(
         transactionToEdit?.let { target ->
             val firstItem = target.items.firstOrNull()
             AddEditTransactionDialog(
-                products = products.map { it.name },
+                products = products,
                 initialType = target.type,
                 initialDate = target.date,
                 initialProduct = firstItem?.productName ?: "",
@@ -291,7 +292,7 @@ fun TransactionsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditTransactionDialog(
-    products: List<String>,
+    products: List<Product>, // Список объектов Product
     initialType: String = "SALE",
     initialDate: String = "",
     initialProduct: String = "",
@@ -308,6 +309,25 @@ fun AddEditTransactionDialog(
     var selectedType by remember { mutableStateOf(initialType) }
     var selectedProduct by remember { mutableStateOf(initialProduct) }
     var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Фильтрация продуктов в зависимости от выбранного типа операции
+    val filteredProducts = remember(selectedType, products) {
+        products.filter { product ->
+            when (selectedType) {
+                "SALE" -> product.type.equals("PRODUCT", ignoreCase = true) || product.type == "Товар"
+                "PURCHASE" -> product.type.equals("MATERIAL", ignoreCase = true) || product.type == "Материал"
+                "EXPENSE" -> product.type.equals("OTHER", ignoreCase = true) || product.type == "Другое"
+                else -> true
+            }
+        }
+    }
+
+    // Автоматический сброс выбранного товара, если при смене типа операции его нет в отфильтрованном списке
+    LaunchedEffect(selectedType) {
+        if (filteredProducts.none { it.name == selectedProduct }) {
+            selectedProduct = ""
+        }
+    }
 
     val defaultDate = remember {
         val currentDay = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.DAY_OF_MONTH))
@@ -349,6 +369,7 @@ fun AddEditTransactionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // Выбор типа операции
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     typeOptions.forEach { (typeKey, typeLabel) ->
                         FilterChip(
@@ -359,6 +380,7 @@ fun AddEditTransactionDialog(
                     }
                 }
 
+                // Выпадающий список позиций
                 ExposedDropdownMenuBox(
                     expanded = isDropdownExpanded,
                     onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
@@ -368,7 +390,16 @@ fun AddEditTransactionDialog(
                         value = selectedProduct,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Товар / Позиция") },
+                        label = {
+                            Text(
+                                when (selectedType) {
+                                    "SALE" -> "Товар"
+                                    "PURCHASE" -> "Материал"
+                                    "EXPENSE" -> "Расходная позиция"
+                                    else -> "Позиция"
+                                }
+                            )
+                        },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                         modifier = Modifier
@@ -380,17 +411,17 @@ fun AddEditTransactionDialog(
                         expanded = isDropdownExpanded,
                         onDismissRequest = { isDropdownExpanded = false }
                     ) {
-                        if (products.isEmpty()) {
+                        if (filteredProducts.isEmpty()) {
                             DropdownMenuItem(
-                                text = { Text("Каталог пуст") },
+                                text = { Text("Нет доступных позиций") },
                                 onClick = { isDropdownExpanded = false }
                             )
                         } else {
-                            products.forEach { productName ->
+                            filteredProducts.forEach { product ->
                                 DropdownMenuItem(
-                                    text = { Text(productName) },
+                                    text = { Text(product.name) },
                                     onClick = {
-                                        selectedProduct = productName
+                                        selectedProduct = product.name
                                         isDropdownExpanded = false
                                     }
                                 )
