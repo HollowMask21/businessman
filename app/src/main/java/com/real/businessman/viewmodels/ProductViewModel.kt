@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -39,7 +40,7 @@ class ProductViewModel(
         )
 
     private val _importState = MutableStateFlow<String?>(null)
-    val importState: StateFlow<String?> = _importState
+    val importState: StateFlow<String?> = _importState.asStateFlow()
 
     // Состояние для показа окна сравнения конфликтов (дубликатов)
     var importPreviewState by mutableStateOf<ImportPreviewState?>(null)
@@ -47,33 +48,36 @@ class ProductViewModel(
 
     // Добавление продукта в ручную
     fun addProduct(name: String, type: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val trimmedName = name.trim()
-            if (trimmedName.isNotBlank()) {
-                // Проверяем, нет ли уже позиции с таким именем (без учета регистра)
-                val exists = products.value.any { it.name.equals(trimmedName, ignoreCase = true) }
-                if (!exists) {
-                    val newProduct = Product(
-                        name = trimmedName,
-                        type = type
-                    )
-                    repository.addProduct(newProduct)
-                }
+        viewModelScope.launch {
+            try {
+                repository.addProduct(Product(name = name, type = type))
+                _importState.value = "Запись «$name» успешно добавлена"
+            } catch (e: Exception) {
+                _importState.value = "Ошибка при добавлении: ${e.localizedMessage}"
             }
         }
     }
 
-    // Изменение продукта
     fun updateProduct(id: String, name: String, type: String) {
         viewModelScope.launch {
-            repository.updateProduct(Product(id = id, name = name, type = type))
+            try {
+                repository.updateProduct(Product(id = id, name = name, type = type))
+                _importState.value = "Запись «$name» успешно изменена"
+            } catch (e: Exception) {
+                _importState.value = "Ошибка при изменении: ${e.localizedMessage}"
+            }
         }
     }
 
-    // Удаление продукта
-    fun deleteProduct(id: String) {
+    fun deleteProduct(id: String, name: String = "") {
         viewModelScope.launch {
-            repository.deleteProduct(id)
+            try {
+                repository.deleteProduct(id)
+                val productNameStr = if (name.isNotBlank()) " «$name»" else ""
+                _importState.value = "Запись$productNameStr успешно удалена"
+            } catch (e: Exception) {
+                _importState.value = "Ошибка при удалении: ${e.localizedMessage}"
+            }
         }
     }
 

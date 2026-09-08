@@ -3,8 +3,7 @@ package com.real.businessman.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,24 +14,40 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.UserRole
 import com.real.businessman.database.Product
 import com.real.businessman.viewmodels.ProductViewModel
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsScreen(
     userRole: UserRole,
     viewModel: ProductViewModel
 ) {
     val context = LocalContext.current
+    val density = LocalDensity.current
 
     val products by viewModel.products.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(importState) {
+        importState?.let { status ->
+            snackbarHostState.showSnackbar(
+                message = status,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearImportStatus()
+        }
+    }
 
     var selectedType by remember { mutableStateOf("SALE") }
     var showAddProductDialog by remember { mutableStateOf(false) }
@@ -40,7 +55,6 @@ fun ProductsScreen(
     var productToEdit by remember { mutableStateOf<Product?>(null) }
     var productToDelete by remember { mutableStateOf<Product?>(null) }
 
-    // Список доступных типов товаров
     val typeOptions = listOf(
         "PRODUCT" to "Товар",
         "MATERIAL" to "Материал",
@@ -58,6 +72,25 @@ fun ProductsScreen(
     }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Surface(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh, // Светлый фон
+                    contentColor = MaterialTheme.colorScheme.onSurface,     // Тёмный текст
+                    shadowElevation = 4.dp
+                ) {
+                    Text(
+                        text = data.visuals.message,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
         topBar = {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
@@ -114,75 +147,72 @@ fun ProductsScreen(
         ) {
             when {
                 products.isNotEmpty() -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        importState?.let { status ->
-                            Snackbar(
-                                action = {
-                                    TextButton(onClick = { viewModel.clearImportStatus() }) {
-                                        Text("ОК")
-                                    }
-                                },
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            ) {
-                                Text(status)
-                            }
-                        }
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(products, key = { it.id }) { product ->
+                            var isMenuExpanded by remember { mutableStateOf(false) }
+                            var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
 
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(products, key = { it.id }) { product ->
-                                var isMenuExpanded by remember { mutableStateOf(false) }
-
-                                Box {
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .combinedClickable(
-                                                onClick = { },
-                                                onLongClick = { isMenuExpanded = true }
-                                            )
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(16.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(text = product.name, style = MaterialTheme.typography.bodyLarge)
-                                            AssistChip(
-                                                onClick = { },
-                                                label = { Text(getProductTypeLabel(product.type)) }
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(
+                                                onLongPress = { offset ->
+                                                    pressOffset = DpOffset(
+                                                        x = with(density) { offset.x.toDp() },
+                                                        y = with(density) { offset.y.toDp() }
+                                                    )
+                                                    isMenuExpanded = true
+                                                }
                                             )
                                         }
-                                    }
-
-                                    DropdownMenu(
-                                        expanded = isMenuExpanded,
-                                        onDismissRequest = { isMenuExpanded = false }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        DropdownMenuItem(
-                                            text = { Text("Изменить") },
-                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                            onClick = {
-                                                isMenuExpanded = false
-                                                productToEdit = product
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = {
-                                                Icon(
-                                                    Icons.Default.Delete,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.error
-                                                )
-                                            },
-                                            onClick = {
-                                                isMenuExpanded = false
-                                                productToDelete = product
-                                            }
+                                        Text(text = product.name, style = MaterialTheme.typography.bodyLarge)
+                                        AssistChip(
+                                            onClick = { },
+                                            label = { Text(getProductTypeLabel(product.type)) }
                                         )
                                     }
+                                }
+
+                                DropdownMenu(
+                                    expanded = isMenuExpanded,
+                                    onDismissRequest = { isMenuExpanded = false },
+                                    offset = pressOffset
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Изменить") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                        onClick = {
+                                            isMenuExpanded = false
+                                            productToEdit = product
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            isMenuExpanded = false
+                                            productToDelete = product
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -368,11 +398,11 @@ fun ProductsScreen(
             AlertDialog(
                 onDismissRequest = { productToDelete = null },
                 title = { Text("Удалить позицию?") },
-                text = { Text("Вы действительно хотите удалить \"${targetProduct.name}\" из каталога?") },
+                text = { Text("Вы действительно хотите удалить «${targetProduct.name}» из каталога?") },
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.deleteProduct(targetProduct.id)
+                            viewModel.deleteProduct(targetProduct.id, targetProduct.name)
                             productToDelete = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
