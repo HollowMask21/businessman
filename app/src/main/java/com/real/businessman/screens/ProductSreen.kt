@@ -3,9 +3,14 @@ package com.real.businessman.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,10 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.real.businessman.viewmodels.ProductViewModel
 import com.real.businessman.UserRole
+import com.real.businessman.database.Product
+import com.real.businessman.viewmodels.ProductViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProductsScreen(
     userRole: UserRole,
@@ -31,6 +37,20 @@ fun ProductsScreen(
     var selectedType by remember { mutableStateOf("SALE") }
     var showAddProductDialog by remember { mutableStateOf(false) }
 
+    var productToEdit by remember { mutableStateOf<Product?>(null) }
+    var productToDelete by remember { mutableStateOf<Product?>(null) }
+
+    // Список доступных типов товаров
+    val typeOptions = listOf(
+        "PRODUCT" to "Товар",
+        "MATERIAL" to "Материал",
+        "OTHER" to "Другое"
+    )
+
+    fun getProductTypeLabel(typeKey: String): String {
+        return typeOptions.find { it.first == typeKey }?.second ?: "Другое"
+    }
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -43,7 +63,6 @@ fun ProductsScreen(
                 Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Кнопки импорта из Excel доступны только Администратору (canImportExcel)
                 if (userRole.canImportExcel) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -77,7 +96,6 @@ fun ProductsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Добавление позиций вручную доступно всем ролям (ADMIN и WORKER)
                 FilledTonalButton(
                     onClick = { showAddProductDialog = true },
                     modifier = Modifier.fillMaxWidth()
@@ -111,19 +129,58 @@ fun ProductsScreen(
                         }
 
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(products) { product ->
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
+                            items(products, key = { it.id }) { product ->
+                                var isMenuExpanded by remember { mutableStateOf(false) }
+
+                                Box {
+                                    Card(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(16.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                            .combinedClickable(
+                                                onClick = { },
+                                                onLongClick = { isMenuExpanded = true }
+                                            )
                                     ) {
-                                        Text(text = product.name, style = MaterialTheme.typography.bodyLarge)
-                                        AssistChip(
-                                            onClick = { },
-                                            label = { Text(if (product.type == "PRODUCT") "Товар" else "Материал") }
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(text = product.name, style = MaterialTheme.typography.bodyLarge)
+                                            AssistChip(
+                                                onClick = { },
+                                                label = { Text(getProductTypeLabel(product.type)) }
+                                            )
+                                        }
+                                    }
+
+                                    DropdownMenu(
+                                        expanded = isMenuExpanded,
+                                        onDismissRequest = { isMenuExpanded = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Изменить") },
+                                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                            onClick = {
+                                                isMenuExpanded = false
+                                                productToEdit = product
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                            },
+                                            onClick = {
+                                                isMenuExpanded = false
+                                                productToDelete = product
+                                            }
                                         )
                                     }
                                 }
@@ -144,17 +201,13 @@ fun ProductsScreen(
             }
         }
 
-        // Диалог создания новой записи доступен и для WORKER, и для ADMIN
+        // Диалог создания
         if (showAddProductDialog) {
             var productName by remember { mutableStateOf("") }
             var productType by remember { mutableStateOf("PRODUCT") }
             var isDropdownExpanded by remember { mutableStateOf(false) }
 
-            val typeOptions = listOf("PRODUCT" to "Товар", "MATERIAL" to "Материал")
-
-            val isDuplicate = products.any {
-                it.name.trim().equals(productName.trim(), ignoreCase = true)
-            }
+            val isDuplicate = products.any { it.name.trim().equals(productName.trim(), ignoreCase = true) }
 
             AlertDialog(
                 onDismissRequest = { showAddProductDialog = false },
@@ -169,10 +222,7 @@ fun ProductsScreen(
                             isError = isDuplicate,
                             supportingText = {
                                 if (isDuplicate) {
-                                    Text(
-                                        text = "Позиция с таким названием уже есть в базе",
-                                        color = MaterialTheme.colorScheme.error
-                                    )
+                                    Text("Позиция с таким названием уже есть в базе", color = MaterialTheme.colorScheme.error)
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -184,15 +234,13 @@ fun ProductsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             OutlinedTextField(
-                                value = typeOptions.find { it.first == productType }?.second ?: "Товар",
+                                value = getProductTypeLabel(productType),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Тип записи") },
                                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
                                 colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth()
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
                             )
 
                             ExposedDropdownMenu(
@@ -233,6 +281,114 @@ fun ProductsScreen(
             )
         }
 
+        // Диалог редактирования
+        productToEdit?.let { targetProduct ->
+            var updatedName by remember { mutableStateOf(targetProduct.name) }
+            var updatedType by remember { mutableStateOf(targetProduct.type) }
+            var isDropdownExpanded by remember { mutableStateOf(false) }
+
+            val isDuplicate = products.any {
+                it.id != targetProduct.id && it.name.trim().equals(updatedName.trim(), ignoreCase = true)
+            }
+
+            AlertDialog(
+                onDismissRequest = { productToEdit = null },
+                title = { Text("Редактировать позицию") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = updatedName,
+                            onValueChange = { updatedName = it },
+                            label = { Text("Наименование") },
+                            singleLine = true,
+                            isError = isDuplicate,
+                            supportingText = {
+                                if (isDuplicate) {
+                                    Text("Позиция с таким названием уже есть в базе", color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        ExposedDropdownMenuBox(
+                            expanded = isDropdownExpanded,
+                            onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = getProductTypeLabel(updatedType),
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Тип записи") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                modifier = Modifier.menuAnchor().fillMaxWidth()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isDropdownExpanded,
+                                onDismissRequest = { isDropdownExpanded = false }
+                            ) {
+                                typeOptions.forEach { (typeKey, typeLabel) ->
+                                    DropdownMenuItem(
+                                        text = { Text(typeLabel) },
+                                        onClick = {
+                                            updatedType = typeKey
+                                            isDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (updatedName.isNotBlank() && !isDuplicate) {
+                                viewModel.updateProduct(targetProduct.id, updatedName, updatedType)
+                                productToEdit = null
+                            }
+                        },
+                        enabled = updatedName.isNotBlank() && !isDuplicate
+                    ) {
+                        Text("Сохранить")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { productToEdit = null }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
+
+        // Диалог удаления
+        productToDelete?.let { targetProduct ->
+            AlertDialog(
+                onDismissRequest = { productToDelete = null },
+                title = { Text("Удалить позицию?") },
+                text = { Text("Вы действительно хотите удалить \"${targetProduct.name}\" из каталога?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteProduct(targetProduct.id)
+                            productToDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Удалить")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { productToDelete = null }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
+
+        // Диалог конфликтов импорта
         viewModel.importPreviewState?.let { preview ->
             if (preview.conflicts.isNotEmpty()) {
                 AlertDialog(
@@ -259,9 +415,7 @@ fun ProductsScreen(
                         }
                     },
                     confirmButton = {
-                        Button(onClick = {
-                            viewModel.confirmAndForceImport(preview)
-                        }) {
+                        Button(onClick = { viewModel.confirmAndForceImport(preview) }) {
                             Text("Подтвердить и обновить")
                         }
                     },

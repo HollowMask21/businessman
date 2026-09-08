@@ -9,7 +9,7 @@ import kotlinx.coroutines.tasks.await
 class FirebaseRepository {
     private val db = FirebaseFirestore.getInstance()
 
-    // 1. Включение работы в офлайн режиме
+    // Включение работы в офлайн режиме
     init {
         val settings = com.google.firebase.firestore.FirebaseFirestoreSettings.Builder()
             .setPersistenceEnabled(true)
@@ -17,16 +17,17 @@ class FirebaseRepository {
         db.firestoreSettings = settings
     }
 
-    // 2. Получение списка товаров в реальном времени (Realtime Flow)
+    // Получение списка товаров в реальном времени (Realtime Flow)
     fun getProductsFlow(): Flow<List<Product>> = callbackFlow {
         val listener = db.collection("products")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    // Игнорируем PERMISSION_DENIED при выходе из аккаунта
                     close()
                     return@addSnapshotListener
                 }
-                val products = snapshot?.toObjects(Product::class.java) ?: emptyList()
+                val products = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Product::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
                 trySend(products)
             }
         awaitClose { listener.remove() }
@@ -53,13 +54,27 @@ class FirebaseRepository {
         }
     }
 
-    // 3. Добавление товара
+    // Добавление товара
     suspend fun addProduct(product: Product): String {
         val docRef = db.collection("products").add(product).await()
         return docRef.id
     }
 
-    // 4. Добавление транзакции (Продажа/Расход)
+    // Обновление существующего товара
+    suspend fun updateProduct(product: Product) {
+        if (product.id.isNotBlank()) {
+            db.collection("products").document(product.id).set(product).await()
+        }
+    }
+
+    // Удаление товара по id
+    suspend fun deleteProduct(productId: String) {
+        if (productId.isNotBlank()) {
+            db.collection("products").document(productId).delete().await()
+        }
+    }
+
+    // Добавление транзакции (Продажа/Расход)
     suspend fun addTransaction(transaction: Transaction) {
         db.collection("transactions").add(transaction).await()
     }
@@ -130,13 +145,13 @@ class FirebaseRepository {
     ) {
         val batch = db.batch()
 
-        // 1. Новые транзакции создаем как новые документы
+        // Новые транзакции создаем как новые документы
         for (transaction in newTransactions) {
             val docRef = db.collection("transactions").document()
             batch.set(docRef, transaction)
         }
 
-        // 2. Существующие конфликтные записи перезаписываем по их реальному documentId
+        // Существующие конфликтные записи перезаписываем по их реальному documentId
         for (conflict in conflictsToUpdate) {
             val docRef = db.collection("transactions").document(conflict.documentId)
 

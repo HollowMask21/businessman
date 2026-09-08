@@ -63,6 +63,20 @@ class ProductViewModel(
         }
     }
 
+    // Изменение продукта
+    fun updateProduct(id: String, name: String, type: String) {
+        viewModelScope.launch {
+            repository.updateProduct(Product(id = id, name = name, type = type))
+        }
+    }
+
+    // Удаление продукта
+    fun deleteProduct(id: String) {
+        viewModelScope.launch {
+            repository.deleteProduct(id)
+        }
+    }
+
     // Импорт файла с предварительной проверкой дубликатов
     fun importExcelFile(context: Context, uri: Uri, transactionType: String) {
         viewModelScope.launch(Dispatchers.IO) {

@@ -6,7 +6,7 @@ import com.google.firebase.firestore.DocumentId
 data class Product(
     @DocumentId val id: String = "",
     val name: String = "",
-    val type: String = "PRODUCT", // "PRODUCT" или "MATERIAL"
+    val type: String = "PRODUCT", // "PRODUCT" или "MATERIAL" или "OTHER"
 )
 
 // Позиция внутри сделки
