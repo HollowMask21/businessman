@@ -33,20 +33,20 @@ class FirebaseRepository {
         awaitClose { listener.remove() }
     }
 
-    // Получение списка всех транзакций в реальном времени
+    // Получение списка всех транзакций с присвоением doc.id
     fun getTransactionsFlow(): Flow<List<Transaction>> = callbackFlow {
         val listenerRegistration = db.collection("transactions")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    // Игнорируем PERMISSION_DENIED при выходе из аккаунта, не вызывая crash
                     close()
                     return@addSnapshotListener
                 }
 
-                if (snapshot != null) {
-                    val transactions = snapshot.toObjects(Transaction::class.java)
-                    trySend(transactions)
-                }
+                val transactions = snapshot?.documents?.mapNotNull { doc ->
+                    doc.toObject(Transaction::class.java)?.copy(id = doc.id)
+                } ?: emptyList()
+
+                trySend(transactions)
             }
 
         awaitClose {
@@ -74,9 +74,23 @@ class FirebaseRepository {
         }
     }
 
-    // Добавление транзакции (Продажа/Расход)
+    // Добавление транзакции
     suspend fun addTransaction(transaction: Transaction) {
         db.collection("transactions").add(transaction).await()
+    }
+
+    // Обновление существующей транзакции
+    suspend fun updateTransaction(transaction: Transaction) {
+        if (transaction.id.isNotBlank()) {
+            db.collection("transactions").document(transaction.id).set(transaction).await()
+        }
+    }
+
+    // Удаление транзакции по id
+    suspend fun deleteTransaction(transactionId: String) {
+        if (transactionId.isNotBlank()) {
+            db.collection("transactions").document(transactionId).delete().await()
+        }
     }
 
     // Проверка конфликтов перед импортом
@@ -84,7 +98,9 @@ class FirebaseRepository {
         parsedTransactions: List<Transaction>
     ): ImportPreviewState {
         val existingSnapshot = db.collection("transactions").get().await()
-        val existingTransactions = existingSnapshot.toObjects(Transaction::class.java)
+        val existingTransactions = existingSnapshot.documents.mapNotNull { doc ->
+            doc.toObject(Transaction::class.java)?.copy(id = doc.id)
+        }
 
         val conflicts = mutableListOf<ConflictItem>()
         val nonConflictingTransactions = mutableListOf<Transaction>()
@@ -92,7 +108,6 @@ class FirebaseRepository {
         for (newTx in parsedTransactions) {
             val newItem = newTx.items.firstOrNull()
 
-            // Ищем существующую транзакцию с ТЕМ ЖЕ товаром на ТУ ЖЕ дату
             val existingMatch = existingTransactions.find { existing ->
                 val existingItem = existing.items.firstOrNull()
                 existing.date == newTx.date &&
@@ -145,13 +160,11 @@ class FirebaseRepository {
     ) {
         val batch = db.batch()
 
-        // Новые транзакции создаем как новые документы
         for (transaction in newTransactions) {
             val docRef = db.collection("transactions").document()
             batch.set(docRef, transaction)
         }
 
-        // Существующие конфликтные записи перезаписываем по их реальному documentId
         for (conflict in conflictsToUpdate) {
             val docRef = db.collection("transactions").document(conflict.documentId)
 

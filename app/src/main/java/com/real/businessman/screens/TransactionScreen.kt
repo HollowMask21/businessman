@@ -2,14 +2,20 @@ package com.real.businessman.screens
 
 import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,10 +27,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.real.businessman.viewmodels.ProductViewModel
-import com.real.businessman.viewmodels.TransactionViewModel
 import com.real.businessman.UserRole
 import com.real.businessman.database.Transaction
+import com.real.businessman.viewmodels.ProductViewModel
+import com.real.businessman.viewmodels.TransactionViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -40,42 +46,127 @@ fun TransactionsScreen(
     val transactions by transactionViewModel.transactions.collectAsStateWithLifecycle()
     val products by productViewModel.products.collectAsStateWithLifecycle()
     val isLoading by transactionViewModel.isLoading.collectAsStateWithLifecycle()
+    val statusMessage by transactionViewModel.statusMessage.collectAsStateWithLifecycle()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Состояния множественного выбора
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode = selectedIds.isNotEmpty()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // Состояния диалогов
     var showAddDialog by remember { mutableStateOf(false) }
+    var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
 
-    // Сортировка транзакций от старых к новым
+    LaunchedEffect(statusMessage) {
+        statusMessage?.let { message ->
+            snackbarHostState.showSnackbar(
+                message = message,
+                duration = SnackbarDuration.Short
+            )
+            transactionViewModel.clearStatusMessage()
+        }
+    }
+
     val dateFormat = remember { SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()) }
     val sortedTransactions = remember(transactions) {
         transactions.sortedBy { transaction ->
             try {
                 dateFormat.parse(transaction.date)
             } catch (_: Exception) {
-                Date(0) // Запасное значение для некорректных дат
+                Date(0)
             }
         }
     }
 
     Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Surface(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    shadowElevation = 4.dp
+                ) {
+                    Text(
+                        text = data.visuals.message,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        },
         topBar = {
-            TopAppBar(
-                title = { Text("История операций") },
-                actions = {
-                    TextButton(onClick = { showAddDialog = true }) {
-                        Text("+ Операция")
-                    }
-
-                    // Импорт Excel отображается ТОЛЬКО если у пользователя есть права (ADMIN)
-                    if (userRole.canImportExcel) {
-                        IconButton(onClick = { /* Вызов функции выбора файла Excel */ }) {
+            if (isSelectionMode) {
+                TopAppBar(
+                    title = { Text("Выбрано: ${selectedIds.size}") },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedIds = emptySet() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Сбросить")
+                        }
+                    },
+                    actions = {
+                        // Редактирование (доступно только когда выбрана ровно 1 запись)
+                        IconButton(
+                            onClick = {
+                                val selectedId = selectedIds.firstOrNull()
+                                transactionToEdit = sortedTransactions.find { it.id == selectedId }
+                            },
+                            enabled = selectedIds.size == 1
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.FileOpen,
-                                contentDescription = "Импорт из Excel"
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Редактировать"
                             )
                         }
-                    }
-                }
 
-            )
+                        // Выбрать все
+                        IconButton(onClick = {
+                            selectedIds = if (selectedIds.size == sortedTransactions.size) {
+                                emptySet()
+                            } else {
+                                sortedTransactions.map { it.id }.toSet()
+                            }
+                        }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
+                        }
+
+                        // Удаление выбранных элементов
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Удалить выбранное",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("История операций") },
+                    actions = {
+                        TextButton(onClick = { showAddDialog = true }) {
+                            Text("+ Операция")
+                        }
+
+                        if (userRole.canImportExcel) {
+                            IconButton(onClick = { /* Вызов импорта */ }) {
+                                Icon(
+                                    imageVector = Icons.Default.FileOpen,
+                                    contentDescription = "Импорт из Excel"
+                                )
+                            }
+                        }
+                    }
+                )
+            }
         }
     ) { padding ->
         Box(
@@ -91,8 +182,26 @@ fun TransactionsScreen(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(sortedTransactions) { transaction ->
-                            TransactionItemCard(transaction = transaction)
+                        items(sortedTransactions, key = { it.id }) { transaction ->
+                            val isSelected = selectedIds.contains(transaction.id)
+
+                            TransactionItemCard(
+                                transaction = transaction,
+                                isSelected = isSelected,
+                                isSelectionMode = isSelectionMode,
+                                onSelectToggle = {
+                                    selectedIds = if (isSelected) {
+                                        selectedIds - transaction.id
+                                    } else {
+                                        selectedIds + transaction.id
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!isSelectionMode) {
+                                        selectedIds = setOf(transaction.id)
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -110,8 +219,9 @@ fun TransactionsScreen(
             }
         }
 
+        // Диалог создания
         if (showAddDialog) {
-            AddTransactionDialog(
+            AddEditTransactionDialog(
                 products = products.map { it.name },
                 onDismiss = { showAddDialog = false },
                 onConfirm = { type, date, productName, quantity, price, comment ->
@@ -120,31 +230,96 @@ fun TransactionsScreen(
                 }
             )
         }
+
+        // Диалог редактирования
+        transactionToEdit?.let { target ->
+            val firstItem = target.items.firstOrNull()
+            AddEditTransactionDialog(
+                products = products.map { it.name },
+                initialType = target.type,
+                initialDate = target.date,
+                initialProduct = firstItem?.productName ?: "",
+                initialQuantity = firstItem?.quantity?.toString() ?: "",
+                initialPrice = firstItem?.pricePerUnit?.toString() ?: "",
+                initialComment = target.comment,
+                isEditMode = true,
+                onDismiss = { transactionToEdit = null },
+                onConfirm = { type, date, productName, quantity, price, comment ->
+                    transactionViewModel.updateManualTransaction(
+                        id = target.id,
+                        type = type,
+                        date = date,
+                        productName = productName,
+                        quantity = quantity,
+                        pricePerUnit = price,
+                        comment = comment
+                    )
+                    transactionToEdit = null
+                    selectedIds = emptySet()
+                }
+            )
+        }
+
+        // Диалог удаления (для одной или нескольких выбранных записей)
+        if (showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text(if (selectedIds.size == 1) "Удалить операцию?" else "Удалить выбранные операции?") },
+                text = { Text("Вы действительно хотите удалить записи (${selectedIds.size} шт.)?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            transactionViewModel.deleteSelectedTransactions(selectedIds)
+                            selectedIds = emptySet()
+                            showDeleteDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Удалить")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTransactionDialog(
+fun AddEditTransactionDialog(
     products: List<String>,
+    initialType: String = "SALE",
+    initialDate: String = "",
+    initialProduct: String = "",
+    initialQuantity: String = "",
+    initialPrice: String = "",
+    initialComment: String = "",
+    isEditMode: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (type: String, date: String, productName: String, quantity: Double, price: Double, comment: String) -> Unit
 ) {
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
-    var selectedType by remember { mutableStateOf("SALE") }
-    var selectedProduct by remember { mutableStateOf("") }
+    var selectedType by remember { mutableStateOf(initialType) }
+    var selectedProduct by remember { mutableStateOf(initialProduct) }
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    val currentDay = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.DAY_OF_MONTH))
-    val currentMonth = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.MONTH) + 1)
-    val currentYear = calendar.get(Calendar.YEAR)
-    var selectedDate by remember { mutableStateOf("$currentDay.$currentMonth.$currentYear") }
+    val defaultDate = remember {
+        val currentDay = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.DAY_OF_MONTH))
+        val currentMonth = String.format(Locale.getDefault(), "%02d", calendar.get(Calendar.MONTH) + 1)
+        val currentYear = calendar.get(Calendar.YEAR)
+        "$currentDay.$currentMonth.$currentYear"
+    }
 
-    var quantityText by remember { mutableStateOf("") }
-    var priceText by remember { mutableStateOf("") }
-    var commentText by remember { mutableStateOf("") }
+    var selectedDate by remember { mutableStateOf(if (initialDate.isNotBlank()) initialDate else defaultDate) }
+    var quantityText by remember { mutableStateOf(initialQuantity) }
+    var priceText by remember { mutableStateOf(initialPrice) }
+    var commentText by remember { mutableStateOf(initialComment) }
 
     val typeOptions = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
 
@@ -168,7 +343,7 @@ fun AddTransactionDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая операция") },
+        title = { Text(if (isEditMode) "Редактировать операцию" else "Новая операция") },
         text = {
             Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -299,7 +474,7 @@ fun AddTransactionDialog(
                 },
                 enabled = isValid
             ) {
-                Text("Сохранить")
+                Text(if (isEditMode) "Сохранить" else "Добавить")
             }
         },
         dismissButton = {
@@ -310,8 +485,15 @@ fun AddTransactionDialog(
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TransactionItemCard(transaction: Transaction) {
+fun TransactionItemCard(
+    transaction: Transaction,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onSelectToggle: () -> Unit = {},
+    onLongClick: () -> Unit = {}
+) {
     var isExpanded by remember { mutableStateOf(false) }
 
     val isIncome = transaction.type == "SALE"
@@ -328,10 +510,21 @@ fun TransactionItemCard(transaction: Transaction) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { isExpanded = !isExpanded },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        )
+            .combinedClickable(
+                onClick = {
+                    if (isSelectionMode) {
+                        onSelectToggle()
+                    } else {
+                        isExpanded = !isExpanded
+                    }
+                },
+                onLongClick = onLongClick
+            ),
+        colors = if (isSelected) {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+        } else {
+            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -339,18 +532,31 @@ fun TransactionItemCard(transaction: Transaction) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = typeTitle,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (transaction.date.isNotBlank()) {
-                        Text(
-                            text = transaction.date,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    AnimatedVisibility(visible = isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onSelectToggle() },
+                            modifier = Modifier.padding(end = 8.dp)
                         )
+                    }
+
+                    Column {
+                        Text(
+                            text = typeTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (transaction.date.isNotBlank()) {
+                            Text(
+                                text = transaction.date,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 

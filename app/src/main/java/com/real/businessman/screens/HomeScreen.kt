@@ -107,7 +107,9 @@ fun RecentTransactionsBlock(
                 else -> {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         transactions.forEach { transaction ->
-                            TransactionItemCard(transaction = transaction)
+                            TransactionItemCard(
+                                transaction = transaction,
+                                )
                         }
                     }
                 }
