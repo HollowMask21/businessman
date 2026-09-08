@@ -3,41 +3,46 @@ package com.real.businessman.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.UserRole
 import com.real.businessman.database.Product
 import com.real.businessman.viewmodels.ProductViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ProductsScreen(
     userRole: UserRole,
     viewModel: ProductViewModel
 ) {
     val context = LocalContext.current
-    val density = LocalDensity.current
 
     val products by viewModel.products.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Множественный выбор
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    val isSelectionMode = selectedIds.isNotEmpty()
+    var showDeleteMultipleDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(importState) {
         importState?.let { status ->
@@ -51,9 +56,7 @@ fun ProductsScreen(
 
     var selectedType by remember { mutableStateOf("SALE") }
     var showAddProductDialog by remember { mutableStateOf(false) }
-
     var productToEdit by remember { mutableStateOf<Product?>(null) }
-    var productToDelete by remember { mutableStateOf<Product?>(null) }
 
     val typeOptions = listOf(
         "PRODUCT" to "Товар",
@@ -79,8 +82,8 @@ fun ProductsScreen(
                         .wrapContentSize()
                         .padding(bottom = 16.dp, start = 16.dp, end = 16.dp),
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh, // Светлый фон
-                    contentColor = MaterialTheme.colorScheme.onSurface,     // Тёмный текст
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     shadowElevation = 4.dp
                 ) {
                     Text(
@@ -92,48 +95,81 @@ fun ProductsScreen(
             }
         },
         topBar = {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (userRole.canImportExcel) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                selectedType = "SALE"
-                                filePickerLauncher.launch(
-                                    arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                )
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Импорт Продаж")
+            if (isSelectionMode) {
+                // Контекстная панель режима выбора
+                TopAppBar(
+                    title = { Text("Выбрано: ${selectedIds.size}") },
+                    navigationIcon = {
+                        IconButton(onClick = { selectedIds = emptySet() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Сбросить")
                         }
-
-                        Button(
-                            onClick = {
-                                selectedType = "PURCHASE"
-                                filePickerLauncher.launch(
-                                    arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                )
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Text("Импорт Расходов")
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            selectedIds = if (selectedIds.size == products.size) {
+                                emptySet()
+                            } else {
+                                products.map { it.id }.toSet()
+                            }
+                        }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
                         }
+                        IconButton(onClick = { showDeleteMultipleDialog = true }) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Удалить выбранные",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                )
+            } else {
+                // Обычный заголовок и кнопки импорта/добавления
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (userRole.canImportExcel) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    selectedType = "SALE"
+                                    filePickerLauncher.launch(
+                                        arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Импорт Продаж")
+                            }
+
+                            Button(
+                                onClick = {
+                                    selectedType = "PURCHASE"
+                                    filePickerLauncher.launch(
+                                        arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                                    )
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Импорт Расходов")
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                FilledTonalButton(
-                    onClick = { showAddProductDialog = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("+ Добавить позицию вручную")
+                    FilledTonalButton(
+                        onClick = { showAddProductDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("+ Добавить позицию вручную")
+                    }
                 }
             }
         }
@@ -142,7 +178,7 @@ fun ProductsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             contentAlignment = Alignment.Center
         ) {
             when {
@@ -152,67 +188,82 @@ fun ProductsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(products, key = { it.id }) { product ->
-                            var isMenuExpanded by remember { mutableStateOf(false) }
-                            var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
+                            val isSelected = selectedIds.contains(product.id)
 
-                            Box(modifier = Modifier.fillMaxWidth()) {
-                                Card(
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                selectedIds = if (isSelected) {
+                                                    selectedIds - product.id
+                                                } else {
+                                                    selectedIds + product.id
+                                                }
+                                            }
+                                        },
+                                        onLongClick = {
+                                            if (!isSelectionMode) {
+                                                selectedIds = setOf(product.id)
+                                            }
+                                        }
+                                    ),
+                                colors = if (isSelected) {
+                                    CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                                } else {
+                                    CardDefaults.cardColors()
+                                }
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .pointerInput(Unit) {
-                                            detectTapGestures(
-                                                onLongPress = { offset ->
-                                                    pressOffset = DpOffset(
-                                                        x = with(density) { offset.x.toDp() },
-                                                        y = with(density) { offset.y.toDp() }
-                                                    )
-                                                    isMenuExpanded = true
-                                                }
-                                            )
-                                        }
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Text(text = product.name, style = MaterialTheme.typography.bodyLarge)
+                                        AnimatedVisibility(visible = isSelectionMode) {
+                                            Checkbox(
+                                                checked = isSelected,
+                                                onCheckedChange = { checked ->
+                                                    selectedIds = if (checked) {
+                                                        selectedIds + product.id
+                                                    } else {
+                                                        selectedIds - product.id
+                                                    }
+                                                },
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = product.name,
+                                            style = MaterialTheme.typography.bodyLarge
+                                        )
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
                                         AssistChip(
                                             onClick = { },
                                             label = { Text(getProductTypeLabel(product.type)) }
                                         )
-                                    }
-                                }
 
-                                DropdownMenu(
-                                    expanded = isMenuExpanded,
-                                    onDismissRequest = { isMenuExpanded = false },
-                                    offset = pressOffset
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Изменить") },
-                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                        onClick = {
-                                            isMenuExpanded = false
-                                            productToEdit = product
+                                        if (!isSelectionMode) {
+                                            IconButton(onClick = { productToEdit = product }) {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    contentDescription = "Изменить",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
                                         }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Удалить", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = {
-                                            Icon(
-                                                Icons.Default.Delete,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.error
-                                            )
-                                        },
-                                        onClick = {
-                                            isMenuExpanded = false
-                                            productToDelete = product
-                                        }
-                                    )
+                                    }
                                 }
                             }
                         }
@@ -229,6 +280,32 @@ fun ProductsScreen(
                     )
                 }
             }
+        }
+
+        // Диалог массового удаления
+        if (showDeleteMultipleDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteMultipleDialog = false },
+                title = { Text("Удалить выбранные позиции?") },
+                text = { Text("Вы действительно хотите удалить позиции в количестве: ${selectedIds.size} шт.?") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteSelectedProducts(selectedIds)
+                            selectedIds = emptySet()
+                            showDeleteMultipleDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Удалить")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteMultipleDialog = false }) {
+                        Text("Отмена")
+                    }
+                }
+            )
         }
 
         // Диалог создания
@@ -391,71 +468,6 @@ fun ProductsScreen(
                     }
                 }
             )
-        }
-
-        // Диалог удаления
-        productToDelete?.let { targetProduct ->
-            AlertDialog(
-                onDismissRequest = { productToDelete = null },
-                title = { Text("Удалить позицию?") },
-                text = { Text("Вы действительно хотите удалить «${targetProduct.name}» из каталога?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            viewModel.deleteProduct(targetProduct.id, targetProduct.name)
-                            productToDelete = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Text("Удалить")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { productToDelete = null }) {
-                        Text("Отмена")
-                    }
-                }
-            )
-        }
-
-        // Диалог конфликтов импорта
-        viewModel.importPreviewState?.let { preview ->
-            if (preview.conflicts.isNotEmpty()) {
-                AlertDialog(
-                    onDismissRequest = { viewModel.dismissImportConflict() },
-                    title = { Text("Обнаружены расхождения") },
-                    text = {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            item {
-                                Text("В базе найдены записи за те же даты для тех же товаров, но с другими данными. Хотите обновить их?")
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            items(preview.conflicts) { conflict ->
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                                ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        Text("Товар: ${conflict.productName}", style = MaterialTheme.typography.titleSmall)
-                                        Text("Дата: ${conflict.date}")
-                                        Text("Было: цена ${conflict.oldPrice}, кол-во ${conflict.oldQuantity}")
-                                        Text("Стало: цена ${conflict.newPrice}, кол-во ${conflict.newQuantity}")
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        Button(onClick = { viewModel.confirmAndForceImport(preview) }) {
-                            Text("Подтвердить и обновить")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { viewModel.dismissImportConflict() }) {
-                            Text("Отмена")
-                        }
-                    }
-                )
-            }
         }
     }
 }

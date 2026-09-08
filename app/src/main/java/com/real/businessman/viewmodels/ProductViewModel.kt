@@ -81,6 +81,18 @@ class ProductViewModel(
         }
     }
 
+    fun deleteSelectedProducts(ids: Set<String>) {
+        viewModelScope.launch {
+            try {
+                val count = ids.size
+                ids.forEach { repository.deleteProduct(it) }
+                _importState.value = "Успешно удалено позиций: $count"
+            } catch (e: Exception) {
+                _importState.value = "Ошибка при удалении: ${e.localizedMessage}"
+            }
+        }
+    }
+
     // Импорт файла с предварительной проверкой дубликатов
     fun importExcelFile(context: Context, uri: Uri, transactionType: String) {
         viewModelScope.launch(Dispatchers.IO) {
