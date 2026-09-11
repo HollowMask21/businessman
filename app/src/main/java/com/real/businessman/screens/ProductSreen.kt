@@ -1,8 +1,5 @@
 package com.real.businessman.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -22,14 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.UserRole
 import com.real.businessman.database.Product
 import com.real.businessman.viewmodels.ProductViewModel
 
-// Вспомогательная функция для стилизации полей ввода с темным фоном
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun productTextFieldColors() = TextFieldDefaults.colors(
@@ -49,15 +44,12 @@ fun ProductsScreen(
     userRole: UserRole,
     viewModel: ProductViewModel
 ) {
-    val context = LocalContext.current
-
     val products by viewModel.products.collectAsStateWithLifecycle()
     val importState by viewModel.importState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Множественный выбор
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
     var showDeleteMultipleDialog by remember { mutableStateOf(false) }
@@ -72,7 +64,6 @@ fun ProductsScreen(
         }
     }
 
-    var selectedType by remember { mutableStateOf("SALE") }
     var showAddProductDialog by remember { mutableStateOf(false) }
     var productToEdit by remember { mutableStateOf<Product?>(null) }
 
@@ -84,12 +75,6 @@ fun ProductsScreen(
 
     fun getProductTypeLabel(typeKey: String): String {
         return typeOptions.find { it.first == typeKey }?.second ?: "Другое"
-    }
-
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        uri?.let { viewModel.importExcelFile(context, it, selectedType) }
     }
 
     Scaffold(
@@ -114,7 +99,6 @@ fun ProductsScreen(
         },
         topBar = {
             if (isSelectionMode) {
-                // Контекстная панель режима выбора
                 TopAppBar(
                     title = { Text("Выбрано: ${selectedIds.size}") },
                     navigationIcon = {
@@ -126,7 +110,6 @@ fun ProductsScreen(
                         }
                     },
                     actions = {
-                        // Кнопка редактирования: доступна только если выбрана 1 запись
                         IconButton(
                             onClick = {
                                 val selectedId = selectedIds.firstOrNull()
@@ -170,42 +153,9 @@ fun ProductsScreen(
                     )
                 )
             } else {
-                // Обычный заголовок и кнопки импорта/добавления
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    if (userRole.canImportExcel) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    selectedType = "SALE"
-                                    filePickerLauncher.launch(
-                                        arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                    )
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Импорт Продаж")
-                            }
-
-                            Button(
-                                onClick = {
-                                    selectedType = "PURCHASE"
-                                    filePickerLauncher.launch(
-                                        arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                                    )
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Импорт Расходов")
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
 
                     FilledTonalButton(
                         onClick = { showAddProductDialog = true },
@@ -310,7 +260,7 @@ fun ProductsScreen(
             }
         }
 
-        // Диалог массового удаления
+        // Диалоги создания/редактирования/удаления остаются без изменений
         if (showDeleteMultipleDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteMultipleDialog = false },
@@ -336,7 +286,6 @@ fun ProductsScreen(
             )
         }
 
-        // Диалог создания
         if (showAddProductDialog) {
             var productName by remember { mutableStateOf("") }
             var productType by remember { mutableStateOf("PRODUCT") }
@@ -432,7 +381,6 @@ fun ProductsScreen(
             )
         }
 
-        // Диалог редактирования
         productToEdit?.let { targetProduct ->
             var updatedName by remember { mutableStateOf(targetProduct.name) }
             var updatedType by remember { mutableStateOf(targetProduct.type) }
