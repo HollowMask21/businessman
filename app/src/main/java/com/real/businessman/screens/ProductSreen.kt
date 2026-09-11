@@ -5,10 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -18,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,14 +29,14 @@ import com.real.businessman.UserRole
 import com.real.businessman.database.Product
 import com.real.businessman.viewmodels.ProductViewModel
 
-// Вспомогательная функция для стилизации полей ввода (заполненный стиль скругленный под кнопку)
+// Вспомогательная функция для стилизации полей ввода с темным фоном
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun productTextFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-    errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
     focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
     unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
     disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
@@ -114,7 +118,10 @@ fun ProductsScreen(
                 TopAppBar(
                     title = { Text("Выбрано: ${selectedIds.size}") },
                     navigationIcon = {
-                        IconButton(onClick = { selectedIds = emptySet() }) {
+                        IconButton(
+                            onClick = { selectedIds = emptySet() },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
                             Icon(Icons.Default.Close, contentDescription = "Сбросить")
                         }
                     },
@@ -125,7 +132,8 @@ fun ProductsScreen(
                                 val selectedId = selectedIds.firstOrNull()
                                 productToEdit = products.find { it.id == selectedId }
                             },
-                            enabled = selectedIds.size == 1
+                            enabled = selectedIds.size == 1,
+                            modifier = Modifier.clip(CircleShape)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Edit,
@@ -133,17 +141,23 @@ fun ProductsScreen(
                             )
                         }
 
-                        IconButton(onClick = {
-                            selectedIds = if (selectedIds.size == products.size) {
-                                emptySet()
-                            } else {
-                                products.map { it.id }.toSet()
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                selectedIds = if (selectedIds.size == products.size) {
+                                    emptySet()
+                                } else {
+                                    products.map { it.id }.toSet()
+                                }
+                            },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Выбрать все")
                         }
 
-                        IconButton(onClick = { showDeleteMultipleDialog = true }) {
+                        IconButton(
+                            onClick = { showDeleteMultipleDialog = true },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
                             Icon(
                                 Icons.Default.Delete,
                                 contentDescription = "Удалить выбранные",
@@ -241,7 +255,7 @@ fun ProductsScreen(
                                 colors = if (isSelected) {
                                     CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                                 } else {
-                                    CardDefaults.cardColors()
+                                    CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                                 }
                             ) {
                                 Row(
@@ -361,7 +375,16 @@ fun ProductsScreen(
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Тип записи") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                                trailingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .padding(4.dp)
+                                    ) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
+                                    }
+                                },
                                 shape = MaterialTheme.shapes.medium,
                                 colors = productTextFieldColors(),
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
@@ -369,7 +392,8 @@ fun ProductsScreen(
 
                             ExposedDropdownMenu(
                                 expanded = isDropdownExpanded,
-                                onDismissRequest = { isDropdownExpanded = false }
+                                onDismissRequest = { isDropdownExpanded = false },
+                                modifier = Modifier.clip(RoundedCornerShape(12.dp))
                             ) {
                                 typeOptions.filter { it.first != productType }.forEach { (typeKey, typeLabel) ->
                                     DropdownMenuItem(
@@ -377,7 +401,10 @@ fun ProductsScreen(
                                         onClick = {
                                             productType = typeKey
                                             isDropdownExpanded = false
-                                        }
+                                        },
+                                        modifier = Modifier
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                     )
                                 }
                             }
@@ -449,7 +476,16 @@ fun ProductsScreen(
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Тип записи") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
+                                trailingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .padding(4.dp)
+                                    ) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
+                                    }
+                                },
                                 shape = MaterialTheme.shapes.medium,
                                 colors = productTextFieldColors(),
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
@@ -457,7 +493,8 @@ fun ProductsScreen(
 
                             ExposedDropdownMenu(
                                 expanded = isDropdownExpanded,
-                                onDismissRequest = { isDropdownExpanded = false }
+                                onDismissRequest = { isDropdownExpanded = false },
+                                modifier = Modifier.clip(RoundedCornerShape(12.dp))
                             ) {
                                 typeOptions.filter { it.first != updatedType }.forEach { (typeKey, typeLabel) ->
                                     DropdownMenuItem(
@@ -465,7 +502,10 @@ fun ProductsScreen(
                                         onClick = {
                                             updatedType = typeKey
                                             isDropdownExpanded = false
-                                        }
+                                        },
+                                        modifier = Modifier
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                     )
                                 }
                             }

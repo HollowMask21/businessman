@@ -1,14 +1,20 @@
 package com.real.businessman.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -21,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -48,6 +55,219 @@ private fun Double.formatAmount(): String {
         groupingSeparator = ' '
     }
     return DecimalFormat("#,##0.##", symbols).format(this)
+}
+
+// Цвет и стиль для полей ввода на темном фоне
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun transactionTextFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    errorContainerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent,
+    disabledIndicatorColor = Color.Transparent,
+    errorIndicatorColor = Color.Transparent
+)
+
+// Кастомный переключатель типов операций (без рамок, неактивный вариант на темном фоне)
+@Composable
+fun TransactionTypeSegmentedButton(
+    selectedType: String,
+    onTypeSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        val options = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
+
+        options.forEach { (typeKey, typeLabel) ->
+            val isSelected = selectedType == typeKey
+
+            val targetBackgroundColor = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+            }
+
+            val targetTextColor = if (isSelected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            // Плавная анимация цвета фона
+            val backgroundColor by animateColorAsState(
+                targetValue = targetBackgroundColor,
+                animationSpec = tween(durationMillis = 300),
+                label = "bgColorAnimation"
+            )
+
+            // Плавная анимация цвета текста
+            val textColor by animateColorAsState(
+                targetValue = targetTextColor,
+                animationSpec = tween(durationMillis = 300),
+                label = "textColorAnimation"
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(backgroundColor)
+                    .clickable { onTypeSelected(typeKey) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = typeLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = textColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DateFilterTypeSegmentedButton(
+    selectedType: DateFilterType,
+    onTypeSelected: (DateFilterType) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        val options = listOf(
+            DateFilterType.ALL to "Все",
+            DateFilterType.YEAR to "Год",
+            DateFilterType.MONTH to "Месяц",
+            DateFilterType.CUSTOM to "Период"
+        )
+
+        options.forEach { (typeKey, typeLabel) ->
+            val isSelected = selectedType == typeKey
+
+            val targetBackgroundColor = if (isSelected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+            }
+
+            val targetTextColor = if (isSelected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            val backgroundColor by animateColorAsState(
+                targetValue = targetBackgroundColor,
+                animationSpec = tween(durationMillis = 300),
+                label = "dateFilterBgAnim"
+            )
+
+            val textColor by animateColorAsState(
+                targetValue = targetTextColor,
+                animationSpec = tween(durationMillis = 300),
+                label = "dateFilterTextAnim"
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(backgroundColor)
+                    .clickable { onTypeSelected(typeKey) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = typeLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = textColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DateFilterButton(
+    selectedFilterType: DateFilterType,
+    selectedMonth: Int,
+    selectedYear: Int,
+    startDate: String?,
+    endDate: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isAllSelected = selectedFilterType == DateFilterType.ALL
+
+    // Если выбрано "Все", применяем стиль неактивной кнопки из AddEditTransactionDialog
+    val backgroundColor = if (isAllSelected) {
+        MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
+    } else {
+        MaterialTheme.colorScheme.primaryContainer
+    }
+
+    val contentColor = if (isAllSelected) {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    } else {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    }
+
+    val monthNames = remember {
+        listOf("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
+    }
+
+    val filterLabel = when (selectedFilterType) {
+        DateFilterType.ALL -> "Все"
+        DateFilterType.YEAR -> "$selectedYear год"
+        DateFilterType.MONTH -> "${monthNames.getOrElse(selectedMonth) { "" }} $selectedYear"
+        DateFilterType.CUSTOM -> {
+            if (startDate != null && endDate != null) "$startDate – $endDate"
+            else if (startDate != null) "с $startDate"
+            else "Период"
+        }
+    }
+
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = backgroundColor,
+        contentColor = contentColor,
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.FilterList,
+                contentDescription = "Фильтр периода",
+                modifier = Modifier.size(18.dp),
+                tint = contentColor
+            )
+            Text(
+                text = filterLabel,
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -172,23 +392,6 @@ fun TransactionsScreen(
         dateFilteredTransactions.filter { it.type == "PURCHASE" || it.type == "EXPENSE" }.sumOf { it.totalAmount }
     }
 
-    val monthNames = remember {
-        listOf("Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь")
-    }
-
-    val periodLabel = remember(dateFilterType, selectedMonth, selectedYear, customStartDate, customEndDate) {
-        when (dateFilterType) {
-            DateFilterType.ALL -> "Все время"
-            DateFilterType.YEAR -> "$selectedYear год"
-            DateFilterType.MONTH -> "${monthNames[selectedMonth]} $selectedYear г."
-            DateFilterType.CUSTOM -> {
-                val start = customStartDate ?: "..."
-                val end = customEndDate ?: "..."
-                "$start - $end"
-            }
-        }
-    }
-
     Scaffold(
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) { data ->
@@ -270,15 +473,17 @@ fun TransactionsScreen(
                 .padding(horizontal = 16.dp)
         ) {
             // Кнопка выбора периода
-            FilterChip(
-                selected = dateFilterType != DateFilterType.ALL,
+            DateFilterButton(
+                selectedFilterType = dateFilterType,
+                selectedMonth = selectedMonth,
+                selectedYear = selectedYear,
+                startDate = customStartDate,
+                endDate = customEndDate,
                 onClick = { showDateFilterDialog = true },
-                label = { Text("Период: $periodLabel") },
-                leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null) },
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 
-            // Интерактивные блоки сумм
+            // Интерактивные блоки сумм с нейтральным фоном
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -295,12 +500,12 @@ fun TransactionsScreen(
                         .clickable {
                             selectedCategoryFilter = if (isExpenseSelected) null else "EXPENSE"
                         },
-                    border = if (isExpenseSelected) BorderStroke(2.dp, Color(0xFFC62828)) else null,
+                    border = if (isExpenseSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
                     colors = CardDefaults.cardColors(
                         containerColor = if (isExpenseSelected) {
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
+                            MaterialTheme.colorScheme.surfaceContainerHigh
                         } else {
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         }
                     )
                 ) {
@@ -317,7 +522,7 @@ fun TransactionsScreen(
                             text = "-${totalPurchasesAndExpenses.formatAmount()} ₽",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC62828)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -329,12 +534,12 @@ fun TransactionsScreen(
                         .clickable {
                             selectedCategoryFilter = if (isSaleSelected) null else "SALE"
                         },
-                    border = if (isSaleSelected) BorderStroke(2.dp, Color(0xFF2E7D32)) else null,
+                    border = if (isSaleSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
                     colors = CardDefaults.cardColors(
                         containerColor = if (isSaleSelected) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                            MaterialTheme.colorScheme.surfaceContainerHigh
                         } else {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         }
                     )
                 ) {
@@ -550,32 +755,11 @@ fun DateFilterSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Выбор типа фильтра
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    FilterChip(
-                        selected = tempFilterType == DateFilterType.ALL,
-                        onClick = { tempFilterType = DateFilterType.ALL },
-                        label = { Text("Все") }
-                    )
-                    FilterChip(
-                        selected = tempFilterType == DateFilterType.YEAR,
-                        onClick = { tempFilterType = DateFilterType.YEAR },
-                        label = { Text("Год") }
-                    )
-                    FilterChip(
-                        selected = tempFilterType == DateFilterType.MONTH,
-                        onClick = { tempFilterType = DateFilterType.MONTH },
-                        label = { Text("Месяц") }
-                    )
-                    FilterChip(
-                        selected = tempFilterType == DateFilterType.CUSTOM,
-                        onClick = { tempFilterType = DateFilterType.CUSTOM },
-                        label = { Text("Период") }
-                    )
-                }
+                // Плавные сегментированные кнопки выбора типа фильтра без рамок
+                DateFilterTypeSegmentedButton(
+                    selectedType = tempFilterType,
+                    onTypeSelected = { tempFilterType = it }
+                )
 
                 when (tempFilterType) {
                     DateFilterType.ALL -> {
@@ -592,18 +776,29 @@ fun DateFilterSelectionDialog(
                             onExpandedChange = { isYearDropdownExpanded = !isYearDropdownExpanded },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            OutlinedTextField(
+                            TextField(
                                 value = "$tempYear год",
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("Выберите год") },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isYearDropdownExpanded) },
-                                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                trailingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                                            .padding(4.dp)
+                                    ) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = isYearDropdownExpanded)
+                                    }
+                                },
+                                shape = MaterialTheme.shapes.medium,
+                                colors = transactionTextFieldColors(),
                                 modifier = Modifier.menuAnchor().fillMaxWidth()
                             )
                             ExposedDropdownMenu(
                                 expanded = isYearDropdownExpanded,
-                                onDismissRequest = { isYearDropdownExpanded = false }
+                                onDismissRequest = { isYearDropdownExpanded = false },
+                                modifier = Modifier.clip(RoundedCornerShape(12.dp))
                             ) {
                                 yearList.forEach { year ->
                                     DropdownMenuItem(
@@ -611,7 +806,10 @@ fun DateFilterSelectionDialog(
                                         onClick = {
                                             tempYear = year
                                             isYearDropdownExpanded = false
-                                        }
+                                        },
+                                        modifier = Modifier
+                                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            .clip(RoundedCornerShape(8.dp))
                                     )
                                 }
                             }
@@ -625,18 +823,29 @@ fun DateFilterSelectionDialog(
                                 onExpandedChange = { isMonthDropdownExpanded = !isMonthDropdownExpanded },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                OutlinedTextField(
+                                TextField(
                                     value = monthNames[tempMonth],
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Месяц") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isMonthDropdownExpanded) },
-                                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                    trailingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .padding(4.dp)
+                                        ) {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = isMonthDropdownExpanded)
+                                        }
+                                    },
+                                    shape = MaterialTheme.shapes.medium,
+                                    colors = transactionTextFieldColors(),
                                     modifier = Modifier.menuAnchor().fillMaxWidth()
                                 )
                                 ExposedDropdownMenu(
                                     expanded = isMonthDropdownExpanded,
-                                    onDismissRequest = { isMonthDropdownExpanded = false }
+                                    onDismissRequest = { isMonthDropdownExpanded = false },
+                                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
                                 ) {
                                     monthNames.forEachIndexed { index, name ->
                                         DropdownMenuItem(
@@ -644,7 +853,10 @@ fun DateFilterSelectionDialog(
                                             onClick = {
                                                 tempMonth = index
                                                 isMonthDropdownExpanded = false
-                                            }
+                                            },
+                                            modifier = Modifier
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                .clip(RoundedCornerShape(8.dp))
                                         )
                                     }
                                 }
@@ -655,18 +867,29 @@ fun DateFilterSelectionDialog(
                                 onExpandedChange = { isYearDropdownExpanded = !isYearDropdownExpanded },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                OutlinedTextField(
+                                TextField(
                                     value = "$tempYear год",
                                     onValueChange = {},
                                     readOnly = true,
                                     label = { Text("Год") },
-                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isYearDropdownExpanded) },
-                                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                                    trailingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                .padding(4.dp)
+                                        ) {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = isYearDropdownExpanded)
+                                        }
+                                    },
+                                    shape = MaterialTheme.shapes.medium,
+                                    colors = transactionTextFieldColors(),
                                     modifier = Modifier.menuAnchor().fillMaxWidth()
                                 )
                                 ExposedDropdownMenu(
                                     expanded = isYearDropdownExpanded,
-                                    onDismissRequest = { isYearDropdownExpanded = false }
+                                    onDismissRequest = { isYearDropdownExpanded = false },
+                                    modifier = Modifier.clip(RoundedCornerShape(12.dp))
                                 ) {
                                     yearList.forEach { year ->
                                         DropdownMenuItem(
@@ -674,7 +897,10 @@ fun DateFilterSelectionDialog(
                                             onClick = {
                                                 tempYear = year
                                                 isYearDropdownExpanded = false
-                                            }
+                                            },
+                                            modifier = Modifier
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                                .clip(RoundedCornerShape(8.dp))
                                         )
                                     }
                                 }
@@ -775,10 +1001,7 @@ fun AddEditTransactionDialog(
     var priceText by remember { mutableStateOf(initialPrice) }
     var commentText by remember { mutableStateOf(initialComment) }
 
-    // Состояние вызова диалога встроенного календаря Material3 DatePicker
     var showDatePickerDialog by remember { mutableStateOf(false) }
-
-    val typeOptions = listOf("SALE" to "Продажа", "PURCHASE" to "Закупка", "EXPENSE" to "Расход")
 
     val quantityVal = quantityText.replace(",", ".").toDoubleOrNull() ?: 0.0
     val priceVal = priceText.replace(",", ".").toDoubleOrNull() ?: 0.0
@@ -794,22 +1017,19 @@ fun AddEditTransactionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    typeOptions.forEach { (typeKey, typeLabel) ->
-                        FilterChip(
-                            selected = selectedType == typeKey,
-                            onClick = { selectedType = typeKey },
-                            label = { Text(typeLabel) }
-                        )
-                    }
-                }
+                // Переключатель типа без рамок (неактивные кнопки на темном фоне)
+                TransactionTypeSegmentedButton(
+                    selectedType = selectedType,
+                    onTypeSelected = { selectedType = it }
+                )
 
+                // Выпадающий список с темными полями и скруглением
                 ExposedDropdownMenuBox(
                     expanded = isDropdownExpanded,
                     onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedTextField(
+                    TextField(
                         value = selectedProduct,
                         onValueChange = {},
                         readOnly = true,
@@ -823,8 +1043,18 @@ fun AddEditTransactionDialog(
                                 }
                             )
                         },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        trailingIcon = {
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(4.dp)
+                            ) {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
+                            }
+                        },
+                        shape = MaterialTheme.shapes.medium,
+                        colors = transactionTextFieldColors(),
                         modifier = Modifier
                             .menuAnchor()
                             .fillMaxWidth()
@@ -832,7 +1062,8 @@ fun AddEditTransactionDialog(
 
                     ExposedDropdownMenu(
                         expanded = isDropdownExpanded,
-                        onDismissRequest = { isDropdownExpanded = false }
+                        onDismissRequest = { isDropdownExpanded = false },
+                        modifier = Modifier.clip(RoundedCornerShape(12.dp))
                     ) {
                         if (filteredProducts.isEmpty()) {
                             DropdownMenuItem(
@@ -846,55 +1077,69 @@ fun AddEditTransactionDialog(
                                     onClick = {
                                         selectedProduct = product.name
                                         isDropdownExpanded = false
-                                    }
+                                    },
+                                    modifier = Modifier
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                                        .clip(RoundedCornerShape(8.dp))
                                 )
                             }
                         }
                     }
                 }
 
+                // Поле даты
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { showDatePickerDialog = true }
                 ) {
-                    OutlinedTextField(
+                    TextField(
                         value = selectedDate,
                         onValueChange = {},
                         readOnly = true,
                         enabled = false,
                         label = { Text("Дата") },
                         trailingIcon = {
-                            IconButton(onClick = { showDatePickerDialog = true }) {
+                            IconButton(
+                                onClick = { showDatePickerDialog = true },
+                                modifier = Modifier.clip(CircleShape)
+                            ) {
                                 Icon(Icons.Default.DateRange, contentDescription = "Выбрать дату")
                             }
                         },
-                        colors = OutlinedTextFieldDefaults.colors(
+                        shape = MaterialTheme.shapes.medium,
+                        colors = TextFieldDefaults.colors(
                             disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                            disabledBorderColor = MaterialTheme.colorScheme.outline,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
                             disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledIndicatorColor = Color.Transparent
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
 
+                // Количество и цена
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    TextField(
                         value = quantityText,
                         onValueChange = { quantityText = it },
                         label = { Text("Кол-во") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        colors = transactionTextFieldColors(),
                         modifier = Modifier.weight(1f)
                     )
 
-                    OutlinedTextField(
+                    TextField(
                         value = priceText,
                         onValueChange = { priceText = it },
                         label = { Text("Цена за ед.") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
+                        shape = MaterialTheme.shapes.medium,
+                        colors = transactionTextFieldColors(),
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -921,11 +1166,14 @@ fun AddEditTransactionDialog(
                     }
                 }
 
-                OutlinedTextField(
+                // Поле комментария
+                TextField(
                     value = commentText,
                     onValueChange = { commentText = it },
                     label = { Text("Комментарий (опционально)") },
                     singleLine = true,
+                    shape = MaterialTheme.shapes.medium,
+                    colors = transactionTextFieldColors(),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -949,7 +1197,6 @@ fun AddEditTransactionDialog(
         }
     )
 
-    // Всплывающий календарь Material3 DatePicker для выбора одиночной даты
     if (showDatePickerDialog) {
         val utcFormat = remember {
             SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).apply {
@@ -1003,7 +1250,8 @@ fun TransactionItemCard(
     var isExpanded by remember { mutableStateOf(false) }
 
     val isIncome = transaction.type == "SALE"
-    val amountColor = if (isIncome) Color(0xFF2E7D32) else Color(0xFFC62828)
+    // Отрицательные суммы выводятся основным текстом (черным), положительные — зеленым
+    val amountColor = if (isIncome) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface
     val prefix = if (isIncome) "+" else "-"
 
     val typeTitle = when (transaction.type) {
@@ -1065,9 +1313,10 @@ fun TransactionItemCard(
                     )
                 }
 
+                // Уменьшенный размер шрифта (titleMedium вместо titleLarge)
                 Text(
                     text = "$prefix${transaction.totalAmount.formatAmount()} ₽",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = amountColor
                 )
