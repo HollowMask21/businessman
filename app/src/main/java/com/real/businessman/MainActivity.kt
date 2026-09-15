@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -138,28 +140,44 @@ fun MainAppContent(
         }
     ) { paddingValues ->
         Surface(modifier = Modifier.padding(paddingValues)) {
-            when (selectedTab) {
-                0 -> HomeScreen(
-                    userRole = userRole,
-                    transactionViewModel = transactionViewModel,
-                    productViewModel = productViewModel,
-                    onNavigateToTransactions = { selectedTab = 2 },
-                    onAddProductClick = { showAddProductDialog = true },
-                    onAddTransactionClick = { showAddTransactionDialog = true }
-                )
-                1 -> ProductsScreen(
-                    userRole = userRole,
-                    viewModel = productViewModel
-                )
-                2 -> TransactionsScreen(
-                    userRole = userRole,
-                    transactionViewModel = transactionViewModel,
-                    productViewModel = productViewModel
-                )
-                3 -> ProfileScreen(
-                    userRole = userRole,
-                    authViewModel = authViewModel
-                )
+            // Анимация переключения между экранами меню
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    // Определение направления сдвига (влево/вправо в зависимости от индекса вкладки)
+                    if (targetState > initialState) {
+                        (slideInHorizontally(animationSpec = tween(300)) { width -> width } + fadeIn(animationSpec = tween(300))) togetherWith
+                                (slideOutHorizontally(animationSpec = tween(300)) { width -> -width } + fadeOut(animationSpec = tween(300)))
+                    } else {
+                        (slideInHorizontally(animationSpec = tween(300)) { width -> -width } + fadeIn(animationSpec = tween(300))) togetherWith
+                                (slideOutHorizontally(animationSpec = tween(300)) { width -> width } + fadeOut(animationSpec = tween(300)))
+                    }
+                },
+                label = "ScreenTransition"
+            ) { targetTab ->
+                when (targetTab) {
+                    0 -> HomeScreen(
+                        userRole = userRole,
+                        transactionViewModel = transactionViewModel,
+                        productViewModel = productViewModel,
+                        onNavigateToTransactions = { selectedTab = 2 },
+                        onAddProductClick = { showAddProductDialog = true },
+                        onAddTransactionClick = { showAddTransactionDialog = true }
+                    )
+                    1 -> ProductsScreen(
+                        userRole = userRole,
+                        viewModel = productViewModel
+                    )
+                    2 -> TransactionsScreen(
+                        userRole = userRole,
+                        transactionViewModel = transactionViewModel,
+                        productViewModel = productViewModel
+                    )
+                    3 -> ProfileScreen(
+                        userRole = userRole,
+                        authViewModel = authViewModel
+                    )
+                }
             }
         }
 
