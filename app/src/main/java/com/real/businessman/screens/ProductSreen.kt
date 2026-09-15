@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.real.businessman.UserRole
 import com.real.businessman.database.Product
@@ -154,10 +155,13 @@ fun ProductsScreen(
                 )
             } else {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Управление каталогом (Firebase)", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        text = "Управление каталогом",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    FilledTonalButton(
+                    Button(
                         onClick = { showAddProductDialog = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {

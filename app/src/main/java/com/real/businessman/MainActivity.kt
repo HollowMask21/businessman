@@ -67,7 +67,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            BusinessmanTheme {
+            var isDarkTheme by remember { mutableStateOf(false) } // Светлая тема по умолчанию
+
+            BusinessmanTheme(darkTheme = isDarkTheme) {
                 val authState by authViewModel.authState.collectAsStateWithLifecycle()
 
                 when (val state = authState) {
@@ -76,7 +78,9 @@ class MainActivity : ComponentActivity() {
                             userRole = state.role,
                             productViewModel = productViewModel,
                             transactionViewModel = transactionViewModel,
-                            authViewModel = authViewModel
+                            authViewModel = authViewModel,
+                            isDarkTheme = isDarkTheme,
+                            onThemeChanged = { isDarkTheme = it }
                         )
                     }
                     is AuthState.Loading -> {
@@ -101,11 +105,12 @@ fun MainAppContent(
     userRole: UserRole,
     productViewModel: ProductViewModel,
     transactionViewModel: TransactionViewModel,
-    authViewModel: AuthViewModel
+    authViewModel: AuthViewModel,
+    isDarkTheme: Boolean,
+    onThemeChanged: (Boolean) -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // Состояния для показа диалоговых окон
     var showAddProductDialog by remember { mutableStateOf(false) }
     var showAddTransactionDialog by remember { mutableStateOf(false) }
 
@@ -140,11 +145,9 @@ fun MainAppContent(
         }
     ) { paddingValues ->
         Surface(modifier = Modifier.padding(paddingValues)) {
-            // Анимация переключения между экранами меню
             AnimatedContent(
                 targetState = selectedTab,
                 transitionSpec = {
-                    // Определение направления сдвига (влево/вправо в зависимости от индекса вкладки)
                     if (targetState > initialState) {
                         (slideInHorizontally(animationSpec = tween(300)) { width -> width } + fadeIn(animationSpec = tween(300))) togetherWith
                                 (slideOutHorizontally(animationSpec = tween(300)) { width -> -width } + fadeOut(animationSpec = tween(300)))
@@ -175,25 +178,25 @@ fun MainAppContent(
                     )
                     3 -> ProfileScreen(
                         userRole = userRole,
-                        authViewModel = authViewModel
+                        authViewModel = authViewModel,
+                        isDarkTheme = isDarkTheme,
+                        onThemeChanged = onThemeChanged
                     )
                 }
             }
         }
 
-        // Диалог добавления товара в каталог
         if (showAddProductDialog) {
             AddProductDialog(
                 productViewModel = productViewModel,
                 onDismiss = { showAddProductDialog = false },
                 onSuccess = {
                     showAddProductDialog = false
-                    selectedTab = 1 // Переход на экран "Каталог" после добавления
+                    selectedTab = 1
                 }
             )
         }
 
-        // Диалог создания транзакции
         if (showAddTransactionDialog) {
             val products by productViewModel.products.collectAsStateWithLifecycle()
             AddEditTransactionDialog(
@@ -209,16 +212,13 @@ fun MainAppContent(
                         comment = comment
                     )
                     showAddTransactionDialog = false
-                    selectedTab = 2 // Переход на экран "Операции" после добавления
+                    selectedTab = 2
                 }
             )
         }
     }
 }
 
-/**
- * Диалог создания нового товара/позиции в каталоге
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddProductDialog(

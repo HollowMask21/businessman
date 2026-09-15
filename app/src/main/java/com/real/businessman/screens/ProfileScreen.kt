@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +21,9 @@ import com.real.businessman.UserRole
 @Composable
 fun ProfileScreen(
     userRole: UserRole,
-    authViewModel: AuthViewModel
+    authViewModel: AuthViewModel,
+    isDarkTheme: Boolean,
+    onThemeChanged: (Boolean) -> Unit
 ) {
     val currentUser = authViewModel.currentUser
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -68,7 +72,6 @@ fun ProfileScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Отображение роли
                         val (roleName, roleColor) = when (userRole) {
                             UserRole.ADMIN -> "Администратор" to MaterialTheme.colorScheme.primary
                             UserRole.WORKER -> "Сотрудник" to MaterialTheme.colorScheme.secondary
@@ -87,6 +90,43 @@ fun ProfileScreen(
                             }
                         )
                     }
+                }
+            }
+
+            // Блок переключения темы
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkTheme) Icons.Default.DarkMode else Icons.Default.LightMode,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Темная тема",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    Switch(
+                        checked = isDarkTheme,
+                        onCheckedChange = onThemeChanged
+                    )
                 }
             }
 

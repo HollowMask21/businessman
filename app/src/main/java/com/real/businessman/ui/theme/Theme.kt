@@ -1,51 +1,69 @@
 package com.real.businessman.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = LightAccent,
+    onPrimary = PureBlack,
+    primaryContainer = DarkSurfaceVariant,
+    onPrimaryContainer = PureWhite,
+
+    secondary = LightAccentVariant,
+    onSecondary = PureBlack,
+    secondaryContainer = DarkSurfaceVariant,
+    onSecondaryContainer = PureWhite,
+
+    background = PureBlack,
+    onBackground = PureWhite,
+
+    surface = DarkSurface,
+    onSurface = PureWhite,
+
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = LightAccentVariant,
+
+    // Переопределение фонов нижнего меню (NavigationBar) и диалоговых окон
+    surfaceContainer = DarkSurface,
+    surfaceContainerHigh = DarkSurfaceVariant,
+    surfaceContainerHighest = DarkSurfaceVariant
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = DarkAccent,
+    onPrimary = PureWhite,
+    primaryContainer = LightSurfaceVariant,
+    onPrimaryContainer = DarkAccent,
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    secondary = DarkAccentVariant,
+    onSecondary = PureWhite,
+    secondaryContainer = LightSurfaceVariant,
+    onSecondaryContainer = DarkAccent,
+
+    background = PureWhite,
+    onBackground = DarkAccent,
+
+    surface = LightSurface,
+    onSurface = DarkAccent,
+
+    surfaceVariant = LightSurfaceVariant,
+    onSurfaceVariant = DarkAccentVariant,
+
+    // Переопределение фонов нижнего меню (NavigationBar) и диалоговых окон
+    surfaceContainer = PureWhite,
+    surfaceContainerHigh = LightSurface,
+    surfaceContainerHighest = LightSurfaceVariant
 )
 
 @Composable
 fun BusinessmanTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = false, // Светлая тема по умолчанию
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }

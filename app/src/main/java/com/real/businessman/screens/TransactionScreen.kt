@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
@@ -49,7 +50,6 @@ import java.util.TimeZone
 
 enum class DateFilterType { ALL, YEAR, MONTH, CUSTOM }
 
-// Вспомогательная функция форматирования чисел (10000 -> 10 000, 10.0 -> 10, 10.5 -> 10.5)
 private fun Double.formatAmount(): String {
     val symbols = DecimalFormatSymbols(Locale.getDefault()).apply {
         groupingSeparator = ' '
@@ -57,7 +57,6 @@ private fun Double.formatAmount(): String {
     return DecimalFormat("#,##0.##", symbols).format(this)
 }
 
-// Цвет и стиль для полей ввода на темном фоне
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun transactionTextFieldColors() = TextFieldDefaults.colors(
@@ -71,7 +70,6 @@ fun transactionTextFieldColors() = TextFieldDefaults.colors(
     errorIndicatorColor = Color.Transparent
 )
 
-// Кастомный переключатель типов операций (без рамок, неактивный вариант на темном фоне)
 @Composable
 fun TransactionTypeSegmentedButton(
     selectedType: String,
@@ -82,7 +80,7 @@ fun TransactionTypeSegmentedButton(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+            .background(MaterialTheme.colorScheme.surface) // Цвет фона приведен к основному
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -103,14 +101,12 @@ fun TransactionTypeSegmentedButton(
                 MaterialTheme.colorScheme.onSurfaceVariant
             }
 
-            // Плавная анимация цвета фона
             val backgroundColor by animateColorAsState(
                 targetValue = targetBackgroundColor,
                 animationSpec = tween(durationMillis = 300),
                 label = "bgColorAnimation"
             )
 
-            // Плавная анимация цвета текста
             val textColor by animateColorAsState(
                 targetValue = targetTextColor,
                 animationSpec = tween(durationMillis = 300),
@@ -146,7 +142,7 @@ fun DateFilterTypeSegmentedButton(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
+            .background(MaterialTheme.colorScheme.surface) // Цвет фона приведен к основному
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -215,7 +211,6 @@ fun DateFilterButton(
 ) {
     val isAllSelected = selectedFilterType == DateFilterType.ALL
 
-    // Если выбрано "Все", применяем стиль неактивной кнопки из AddEditTransactionDialog
     val backgroundColor = if (isAllSelected) {
         MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.6f)
     } else {
@@ -283,14 +278,10 @@ fun TransactionsScreen(
     val statusMessage by transactionViewModel.statusMessage.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // Состояние прокрутки списка
     val listState = rememberLazyListState()
 
-    // Фильтр по категориям: null - все, "EXPENSE" - закупки и расходы, "SALE" - продажи
     var selectedCategoryFilter by remember { mutableStateOf<String?>(null) }
 
-    // Фильтр по дате и периодам
     var dateFilterType by remember { mutableStateOf(DateFilterType.ALL) }
     var selectedMonth by remember { mutableStateOf(Calendar.getInstance().get(Calendar.MONTH)) }
     var selectedYear by remember { mutableStateOf(Calendar.getInstance().get(Calendar.YEAR)) }
@@ -298,7 +289,6 @@ fun TransactionsScreen(
     var customEndDate by remember { mutableStateOf<String?>(null) }
     var showDateFilterDialog by remember { mutableStateOf(false) }
 
-    // Сброс прокрутки в начало при изменении любого из фильтров
     LaunchedEffect(
         selectedCategoryFilter,
         dateFilterType,
@@ -310,12 +300,10 @@ fun TransactionsScreen(
         listState.scrollToItem(0)
     }
 
-    // Состояния множественного выбора
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     val isSelectionMode = selectedIds.isNotEmpty()
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    // Состояния диалогов
     var showAddDialog by remember { mutableStateOf(false) }
     var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
 
@@ -340,7 +328,6 @@ fun TransactionsScreen(
         }
     }
 
-    // Фильтрация по дате/периоду
     val dateFilteredTransactions = remember(
         sortedTransactions,
         dateFilterType,
@@ -357,12 +344,8 @@ fun TransactionsScreen(
 
             when (dateFilterType) {
                 DateFilterType.ALL -> true
-                DateFilterType.YEAR -> {
-                    cal.get(Calendar.YEAR) == selectedYear
-                }
-                DateFilterType.MONTH -> {
-                    cal.get(Calendar.MONTH) == selectedMonth && cal.get(Calendar.YEAR) == selectedYear
-                }
+                DateFilterType.YEAR -> cal.get(Calendar.YEAR) == selectedYear
+                DateFilterType.MONTH -> cal.get(Calendar.MONTH) == selectedMonth && cal.get(Calendar.YEAR) == selectedYear
                 DateFilterType.CUSTOM -> {
                     val start = customStartDate?.let { try { dateFormat.parse(it) } catch (_: Exception) { null } }
                     val end = customEndDate?.let { try { dateFormat.parse(it) } catch (_: Exception) { null } }
@@ -375,7 +358,6 @@ fun TransactionsScreen(
         }
     }
 
-    // Отображаемый список с учетом фильтрации по категории
     val displayedTransactions = remember(dateFilteredTransactions, selectedCategoryFilter) {
         when (selectedCategoryFilter) {
             "SALE" -> dateFilteredTransactions.filter { it.type == "SALE" }
@@ -384,7 +366,6 @@ fun TransactionsScreen(
         }
     }
 
-    // Расчет сумм за выбранный период
     val totalSales = remember(dateFilteredTransactions) {
         dateFilteredTransactions.filter { it.type == "SALE" }.sumOf { it.totalAmount }
     }
@@ -415,7 +396,7 @@ fun TransactionsScreen(
         topBar = {
             if (isSelectionMode) {
                 TopAppBar(
-                    title = { Text("Выбрано: ${selectedIds.size}") },
+                    title = { Text("Выбрано: ${selectedIds.size}", fontWeight = FontWeight.Bold) },
                     navigationIcon = {
                         IconButton(onClick = { selectedIds = emptySet() }) {
                             Icon(Icons.Default.Close, contentDescription = "Сбросить")
@@ -451,17 +432,22 @@ fun TransactionsScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                    )
+                        containerColor = MaterialTheme.colorScheme.background // Одинаковый цвет фона
+                    ),
+                    windowInsets = WindowInsets(0) // Смещение заголовка максимально вверх
                 )
             } else {
                 TopAppBar(
-                    title = { Text("История операций") },
+                    title = { Text("История операций", fontWeight = FontWeight.Bold) }, // Жирный текст
                     actions = {
                         TextButton(onClick = { showAddDialog = true }) {
                             Text("+ Операция")
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background // Одинаковый цвет фона
+                    ),
+                    windowInsets = WindowInsets(0) // Смещение заголовка максимально вверх
                 )
             }
         }
@@ -472,7 +458,6 @@ fun TransactionsScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            // Кнопка выбора периода
             DateFilterButton(
                 selectedFilterType = dateFilterType,
                 selectedMonth = selectedMonth,
@@ -483,7 +468,6 @@ fun TransactionsScreen(
                 modifier = Modifier.padding(vertical = 4.dp)
             )
 
-            // Интерактивные блоки сумм с нейтральным фоном
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -493,7 +477,6 @@ fun TransactionsScreen(
                 val isExpenseSelected = selectedCategoryFilter == "EXPENSE"
                 val isSaleSelected = selectedCategoryFilter == "SALE"
 
-                // Блок 1: Закупки и расходы
                 Card(
                     modifier = Modifier
                         .weight(1f)
@@ -527,7 +510,6 @@ fun TransactionsScreen(
                     }
                 }
 
-                // Блок 2: Продажи
                 Card(
                     modifier = Modifier
                         .weight(1f)
@@ -562,9 +544,8 @@ fun TransactionsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // Список транзакций
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -618,7 +599,6 @@ fun TransactionsScreen(
             }
         }
 
-        // Диалог фильтрации по датам
         if (showDateFilterDialog) {
             DateFilterSelectionDialog(
                 currentFilterType = dateFilterType,
@@ -638,7 +618,6 @@ fun TransactionsScreen(
             )
         }
 
-        // Диалог создания
         if (showAddDialog) {
             AddEditTransactionDialog(
                 products = products,
@@ -650,7 +629,6 @@ fun TransactionsScreen(
             )
         }
 
-        // Диалог редактирования
         transactionToEdit?.let { target ->
             val firstItem = target.items.firstOrNull()
             AddEditTransactionDialog(
@@ -679,7 +657,6 @@ fun TransactionsScreen(
             )
         }
 
-        // Диалог удаления
         if (showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
@@ -755,7 +732,6 @@ fun DateFilterSelectionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Плавные сегментированные кнопки выбора типа фильтра без рамок
                 DateFilterTypeSegmentedButton(
                     selectedType = tempFilterType,
                     onTypeSelected = { tempFilterType = it }
@@ -1017,13 +993,11 @@ fun AddEditTransactionDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Переключатель типа без рамок (неактивные кнопки на темном фоне)
                 TransactionTypeSegmentedButton(
                     selectedType = selectedType,
                     onTypeSelected = { selectedType = it }
                 )
 
-                // Выпадающий список с темными полями и скруглением
                 ExposedDropdownMenuBox(
                     expanded = isDropdownExpanded,
                     onExpandedChange = { isDropdownExpanded = !isDropdownExpanded },
@@ -1087,7 +1061,6 @@ fun AddEditTransactionDialog(
                     }
                 }
 
-                // Поле даты
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1119,7 +1092,6 @@ fun AddEditTransactionDialog(
                     )
                 }
 
-                // Количество и цена
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextField(
                         value = quantityText,
@@ -1144,29 +1116,46 @@ fun AddEditTransactionDialog(
                     )
                 }
 
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Итоговая сумма:", style = MaterialTheme.typography.bodyMedium)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Calculate,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Итоговая сумма",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+
                         Text(
                             text = "${totalSum.formatAmount()} ₽",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
 
-                // Поле комментария
                 TextField(
                     value = commentText,
                     onValueChange = { commentText = it },
@@ -1250,7 +1239,6 @@ fun TransactionItemCard(
     var isExpanded by remember { mutableStateOf(false) }
 
     val isIncome = transaction.type == "SALE"
-    // Отрицательные суммы выводятся основным текстом (черным), положительные — зеленым
     val amountColor = if (isIncome) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurface
     val prefix = if (isIncome) "+" else "-"
 
@@ -1313,7 +1301,6 @@ fun TransactionItemCard(
                     )
                 }
 
-                // Уменьшенный размер шрифта (titleMedium вместо titleLarge)
                 Text(
                     text = "$prefix${transaction.totalAmount.formatAmount()} ₽",
                     style = MaterialTheme.typography.titleMedium,
