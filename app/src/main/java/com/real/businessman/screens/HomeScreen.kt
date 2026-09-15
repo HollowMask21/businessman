@@ -53,7 +53,11 @@ fun HomeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Главная") }
+                title = { Text("Главная", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                ),
+                windowInsets = WindowInsets(0)
             )
         }
     ) { paddingValues ->
@@ -78,7 +82,7 @@ fun HomeScreen(
                     )
                 }
 
-                // БЛОК 2: Быстрые действия (занимает ~1/4 ширины экрана относительно weight(1f))
+                // БЛОК 2: Быстрые действия (занимает ~1/4 ширины экрана)
                 Box(modifier = Modifier.weight(0.35f)) {
                     QuickActionsBlock(
                         userRole = userRole,
@@ -167,7 +171,6 @@ fun QuickActionsBlock(
                             QuickActionButton(item = action)
                         }
                     }
-                    // Если в последнем ряду только одна кнопка, добавляем пустой элемент для выравнивания сетки
                     if (rowItems.size == 1) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
@@ -184,7 +187,6 @@ private fun QuickActionButton(item: QuickActionItem) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // Увеличенный размер круглой кнопки (например, 56.dp)
         Button(
             onClick = item.onClick,
             shape = CircleShape,

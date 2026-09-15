@@ -1,6 +1,7 @@
 package com.real.businessman.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountCircle
@@ -28,10 +29,17 @@ fun ProfileScreen(
     val currentUser = authViewModel.currentUser
     var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // Единый цвет фона для всех блоков
+    val blockContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Профиль и Аккаунт") }
+                title = { Text("Профиль и Аккаунт", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                ),
+                windowInsets = WindowInsets(0)
             )
         }
     ) { padding ->
@@ -46,9 +54,7 @@ fun ProfileScreen(
             // Карточка пользователя
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
+                colors = CardDefaults.cardColors(containerColor = blockContainerColor)
             ) {
                 Row(
                     modifier = Modifier
@@ -70,35 +76,72 @@ fun ProfileScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         val (roleName, roleColor) = when (userRole) {
                             UserRole.ADMIN -> "Администратор" to MaterialTheme.colorScheme.primary
                             UserRole.WORKER -> "Сотрудник" to MaterialTheme.colorScheme.secondary
                         }
 
-                        SuggestionChip(
-                            onClick = { },
-                            label = { Text(roleName, color = roleColor, fontWeight = FontWeight.Bold) },
-                            icon = {
+                        // Некликабельный бейдж роли
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = roleColor.copy(alpha = 0.12f),
+                            contentColor = roleColor
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Security,
                                     contentDescription = null,
                                     tint = roleColor,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Text(
+                                    text = roleName,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = roleColor
                                 )
                             }
-                        )
+                        }
                     }
                 }
             }
 
-            // Блок переключения темы
+            // Описание возможностей (перемещено выше)
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                )
+                colors = CardDefaults.cardColors(containerColor = blockContainerColor)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Доступные возможности:",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text("• Создание, редактирование и удаление операций", style = MaterialTheme.typography.bodyMedium)
+                    Text("• Управление товарами и материалами", style = MaterialTheme.typography.bodyMedium)
+
+                    if (userRole.canImportExcel) {
+                        Text("• Массовый импорт данных из Excel (ADMIN)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Text("• Массовый импорт Excel недоступен для вашей роли", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    }
+                }
+            }
+
+            // Блок переключения темы (перемещен ниже)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = blockContainerColor)
             ) {
                 Row(
                     modifier = Modifier
@@ -130,47 +173,34 @@ fun ProfileScreen(
                 }
             }
 
-            // Описание прав
-            Card(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Доступные возможности:",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Text("• Создание, редактирование и удаление операций", style = MaterialTheme.typography.bodyMedium)
-                    Text("• Управление товарами и материалами", style = MaterialTheme.typography.bodyMedium)
-
-                    if (userRole.canImportExcel) {
-                        Text("• Массовый импорт данных из Excel (ADMIN)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    } else {
-                        Text("• Массовый импорт Excel недоступен для вашей роли", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.weight(1f))
 
-            // Кнопка выхода из системы
-            Button(
+            // Прозрачная кнопка выхода с приятным красным текстом
+            val redColor = Color(0xFFE53935)
+
+            OutlinedButton(
                 onClick = { showLogoutDialog = true },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                border = ButtonDefaults.outlinedButtonBorder(enabled = true).copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(redColor.copy(alpha = 0.2f))
                 ),
-                modifier = Modifier.fillMaxWidth()
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = redColor.copy(alpha = 0.05f),
+                    contentColor = redColor
+                )
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                    contentDescription = "Выйти"
+                    contentDescription = "Выйти",
+                    tint = redColor
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Выйти из аккаунта")
+                Text(
+                    text = "Выйти из аккаунта",
+                    fontWeight = FontWeight.SemiBold,
+                    color = redColor
+                )
             }
         }
 

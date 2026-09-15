@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            var isDarkTheme by remember { mutableStateOf(false) } // Светлая тема по умолчанию
+            var isDarkTheme by remember { mutableStateOf(false) }
 
             BusinessmanTheme(darkTheme = isDarkTheme) {
                 val authState by authViewModel.authState.collectAsStateWithLifecycle()
@@ -116,7 +116,10 @@ fun MainAppContent(
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            // Задаем цвет нижней панели навигации чуть темнее основного фона
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
