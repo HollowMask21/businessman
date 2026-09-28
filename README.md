@@ -58,7 +58,3 @@ com.real.businessman
 * **Количество / Объем**[cite: 2]
 * **Сумма / Итого** *(опционально)*[cite: 2]
 * **Дата** *(опционально)*[cite: 2]
-
-1. Клонируйте репозиторий:
-   ```bash
-   git clone [https://github.com/ВАШ_ЛОГИН/Businessman.git](https://github.com/ВАШ_ЛОГИН/Businessman.git)
